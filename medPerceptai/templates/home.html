@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block title %}Home | MedPerceptAI{% endblock %}
+
+{% block content %}
+  <section class="bg-white py-5 border rounded-3">
+    <div class="container text-center">
+      <h1 class="display-5 fw-bold text-primary mb-3">MedPerceptAI</h1>
+      <p class="lead text-muted mb-4">
+        AI-Assisted Vision &amp; Intent Monitoring for Patient Safety
+      </p>
+
+      <div class="d-flex justify-content-center gap-3">
+        <a href="{% url 'login' %}" class="btn btn-primary btn-lg px-4">
+          Proceed to Login
+        </a>
+      </div>
+    </div>
+  </section>
+{% endblock %}

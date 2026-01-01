@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Login | MedPerceptAI{% endblock %}
+
+{% block head %}
+	<style>
+		html, body { height: 100%; }
+		body {
+			overflow-x: hidden;
+			background-image: url("{% static 'accounts/img/login-bg.svg' %}");
+			background-size: cover;
+			background-position: center;
+			background-repeat: no-repeat;
+		}
+		body::before {
+			content: "";
+			position: fixed;
+			inset: 0;
+			background: rgba(248, 249, 250, 0.78);
+			z-index: 0;
+		}
+		.login-surface { position: relative; z-index: 1; }
+
+		.login-wrap { max-width: 520px; }
+		.login-logo { width: clamp(60px, 10vw, 76px); height: clamp(60px, 10vw, 76px); }
+		.login-title { font-size: clamp(1.6rem, 2.6vw, 2.2rem); }
+		.login-subtitle { font-size: clamp(0.95rem, 1.4vw, 1.05rem); }
+
+		@media (max-height: 620px) {
+			body { overflow-y: auto; }
+		}
+	</style>
+{% endblock %}
+
+{% block navbar %}{% endblock %}
+{% block footer %}{% endblock %}
+{% block main_class %}container-fluid min-vh-100 d-flex align-items-center justify-content-center px-3 py-4{% endblock %}
+
+{% block content %}
+	<div class="w-100 login-wrap login-surface">
+		<div class="text-center mb-3">
+			<div class="d-inline-flex align-items-center justify-content-center bg-primary rounded-4 login-logo">
+				<svg width="36" height="36" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+					<path d="M3 12h4l2-6 4 12 2-6h6" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+				</svg>
+			</div>
+			<h1 class="fw-bold mt-3 mb-1 login-title">MedPerceptAI</h1>
+			<p class="text-muted mb-0 login-subtitle">Vision Language Patient Intent System</p>
+		</div>
+
+		<div class="card shadow-sm border-0">
+			<div class="card-body p-4 p-sm-4 p-md-5">
+				<form method="post" novalidate>
+					{% csrf_token %}
+
+					{% if form.non_field_errors %}
+						<div class="alert alert-danger">{{ form.non_field_errors }}</div>
+					{% endif %}
+
+					<div class="mb-3">
+						<label class="form-label fw-bold text-uppercase small" for="id_username">User ID</label>
+						<div class="input-group input-group-lg">
+							<span class="input-group-text bg-white">
+								<svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+									<path d="M20 21a8 8 0 0 0-16 0" stroke="#6c757d" stroke-width="2" stroke-linecap="round" />
+									<path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" stroke="#6c757d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+								</svg>
+							</span>
+							<input type="text" name="username" class="form-control" required id="id_username" />
+						</div>
+						{% if form.username.errors %}
+							<div class="text-danger small mt-1">{{ form.username.errors }}</div>
+						{% endif %}
+					</div>
+
+					<div class="mb-3">
+						<label class="form-label fw-bold text-uppercase small" for="id_password">Password</label>
+						<div class="input-group input-group-lg">
+							<span class="input-group-text bg-white">
+								<svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+									<path d="M7 11V8a5 5 0 0 1 10 0v3" stroke="#6c757d" stroke-width="2" stroke-linecap="round" />
+									<path d="M6 11h12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1Z" stroke="#6c757d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+								</svg>
+							</span>
+							<input type="password" name="password" class="form-control" required id="id_password" />
+						</div>
+						{% if form.password.errors %}
+							<div class="text-danger small mt-1">{{ form.password.errors }}</div>
+						{% endif %}
+					</div>
+
+					<button type="submit" class="btn btn-primary btn-lg w-100 py-2 fw-semibold">
+						Login to System
+						<span class="ms-2" aria-hidden="true">›</span>
+					</button>
+				</form>
+			</div>
+		</div>
+
+		<p class="text-center text-muted small mt-3 mb-0">
+			Restricted Access • Authorized Personnel Only
+		</p>
+	</div>
+{% endblock %}
