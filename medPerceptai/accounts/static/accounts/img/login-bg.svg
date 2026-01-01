@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <defs>
+    <linearGradient id="g" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#0d6efd" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#20c997" stop-opacity="0.12"/>
+    </linearGradient>
+    <pattern id="p" width="160" height="160" patternUnits="userSpaceOnUse">
+      <g fill="none" stroke="#0d6efd" stroke-opacity="0.12" stroke-width="2">
+        <path d="M80 18v32M64 34h32"/>
+        <path d="M80 110v32M64 126h32"/>
+        <path d="M18 80h32M34 64v32"/>
+        <path d="M110 80h32M126 64v32"/>
+      </g>
+      <path d="M18 92h28l10-22 18 44 14-30h44" fill="none" stroke="#20c997" stroke-opacity="0.18" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    </pattern>
+    <radialGradient id="r" cx="30%" cy="20%" r="70%">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1600" height="900" fill="#f8f9fa"/>
+  <rect width="1600" height="900" fill="url(#g)"/>
+  <rect width="1600" height="900" fill="url(#p)"/>
+  <circle cx="420" cy="220" r="520" fill="url(#r)"/>
+</svg>
