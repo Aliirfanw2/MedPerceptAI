@@ -13,6 +13,9 @@ ENV/
 *.log
 local_settings.py
 
+# User uploads
+medPerceptai/media/
+
 # SQLite DB (do not commit)
 *.sqlite3
 

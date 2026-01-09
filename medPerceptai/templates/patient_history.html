@@ -1,0 +1,327 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>MedPerceptAI — Patient History</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet" />
+
+    <style>
+      :root {
+        --bg: #0f172a;
+        --panel: #1e293b;
+        --text: #e5e7eb;
+        --muted: rgba(229, 231, 235, 0.68);
+
+        --accent: #3b82f6;
+        --danger: #ef4444;
+        --success: #22c55e;
+      }
+
+      html,
+      body {
+        height: 100%;
+      }
+
+      body {
+        font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+        background: radial-gradient(1200px 800px at 15% 0%, rgba(59, 130, 246, 0.14), transparent 55%),
+          radial-gradient(1000px 700px at 90% 25%, rgba(239, 68, 68, 0.1), transparent 55%), var(--bg);
+        color: var(--text);
+        overflow-x: hidden;
+      }
+
+      .sidebar {
+        width: 280px;
+        background: linear-gradient(180deg, rgba(30, 41, 59, 0.96), rgba(30, 41, 59, 0.9));
+        border-right: 1px solid rgba(255, 255, 255, 0.06);
+        position: fixed;
+        inset: 0 auto 0 0;
+        z-index: 10;
+      }
+
+      .content {
+        margin-left: 280px;
+        min-height: 100vh;
+      }
+
+      @media (max-width: 991.98px) {
+        .sidebar {
+          position: relative;
+          width: 100%;
+          height: auto;
+        }
+        .content {
+          margin-left: 0;
+        }
+      }
+
+      .panel {
+        background: linear-gradient(180deg, rgba(30, 41, 59, 0.92), rgba(30, 41, 59, 0.85));
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 14px;
+      }
+
+      .panel-soft {
+        background: rgba(30, 41, 59, 0.72);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 14px;
+      }
+
+      .muted {
+        color: var(--muted);
+      }
+
+      .nav-link-dark {
+        color: rgba(229, 231, 235, 0.75);
+        border-radius: 12px;
+        padding: 10px 12px;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        text-decoration: none;
+      }
+
+      .nav-link-dark:hover {
+        background: rgba(59, 130, 246, 0.1);
+        color: rgba(229, 231, 235, 0.92);
+      }
+
+      .nav-link-dark.active {
+        background: rgba(59, 130, 246, 0.16);
+        color: rgba(229, 231, 235, 0.96);
+        border: 1px solid rgba(59, 130, 246, 0.2);
+      }
+
+      .header {
+        position: sticky;
+        top: 0;
+        z-index: 5;
+        backdrop-filter: blur(12px);
+        background: rgba(15, 23, 42, 0.72);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      }
+
+      .badge-soft {
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(255, 255, 255, 0.06);
+        color: rgba(229, 231, 235, 0.86);
+      }
+
+      .clock {
+        font-variant-numeric: tabular-nums;
+        letter-spacing: 0.3px;
+      }
+
+      .table-darkish {
+        --bs-table-bg: transparent;
+        --bs-table-striped-bg: rgba(255, 255, 255, 0.03);
+        --bs-table-color: rgba(229, 231, 235, 0.92);
+        --bs-table-border-color: rgba(255, 255, 255, 0.08);
+      }
+
+      .status {
+        border-radius: 999px;
+        padding: 6px 10px;
+        font-size: 0.82rem;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(255, 255, 255, 0.06);
+        color: rgba(229, 231, 235, 0.88);
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .status.ok {
+        border-color: rgba(34, 197, 94, 0.28);
+        background: rgba(34, 197, 94, 0.12);
+      }
+
+      .status.warn {
+        border-color: rgba(59, 130, 246, 0.28);
+        background: rgba(59, 130, 246, 0.12);
+      }
+
+      .status.crit {
+        border-color: rgba(239, 68, 68, 0.3);
+        background: rgba(239, 68, 68, 0.12);
+      }
+    </style>
+  </head>
+
+  <body>
+    <aside class="sidebar d-flex flex-column p-3 p-lg-4">
+      <div class="d-flex align-items-center gap-2 mb-3">
+        <div
+          class="d-inline-flex align-items-center justify-content-center rounded-3"
+          style="width: 38px; height: 38px; background: rgba(59,130,246,0.18); border: 1px solid rgba(59,130,246,0.25);"
+        >
+          <i class="fa-solid fa-heart-pulse" style="color: rgba(229,231,235,0.92)"></i>
+        </div>
+        <div>
+          <div class="fw-bold">MedPerceptAI</div>
+          <div class="small muted">Real-Time Monitoring</div>
+        </div>
+      </div>
+
+      <div class="panel-soft p-2 mb-3">
+        <a class="nav-link-dark" href="{% url 'dashboard' %}">
+          <i class="fa-solid fa-gauge-high"></i>
+          <span>Dashboard</span>
+        </a>
+        <a class="nav-link-dark" href="{% url 'live_monitor' %}">
+          <i class="fa-solid fa-camera"></i>
+          <span>Cameras</span>
+          <span class="ms-auto badge rounded-pill badge-soft">6</span>
+        </a>
+        <a class="nav-link-dark" href="{% url 'alerts' %}">
+          <i class="fa-solid fa-triangle-exclamation"></i>
+          <span>Alerts</span>
+        </a>
+        <a class="nav-link-dark active" href="{% url 'patient_history' %}">
+          <i class="fa-solid fa-notes-medical"></i>
+          <span>Patient History</span>
+        </a>
+        <a class="nav-link-dark" href="{% url 'settings' %}">
+          <i class="fa-solid fa-gear"></i>
+          <span>Settings</span>
+        </a>
+      </div>
+
+      <div class="mt-auto">
+        <div class="panel p-3 d-flex align-items-center gap-3">
+          <div
+            class="rounded-circle d-inline-flex align-items-center justify-content-center"
+            style="width: 44px; height: 44px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.10);"
+            aria-hidden="true"
+          >
+            <i class="fa-solid fa-user-doctor muted"></i>
+          </div>
+          <div class="flex-grow-1">
+            <div class="fw-semibold">{{ user.get_full_name|default:user.get_username|default:"Operator" }}</div>
+            <div class="small muted">Shift: Night • ICU</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <div class="content">
+      <header class="header">
+        <div class="container-fluid py-3 px-3 px-lg-4">
+          <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+            <div class="d-flex align-items-center gap-2">
+              <span class="badge badge-soft">
+                <i class="fa-solid fa-notes-medical me-1"></i>
+                Patient History
+              </span>
+              <span class="muted small">/ Overview</span>
+            </div>
+
+            <div class="d-flex align-items-center gap-2 gap-sm-3">
+              <div class="panel-soft px-3 py-2 d-flex align-items-center gap-2">
+                <i class="fa-regular fa-clock muted"></i>
+                <span class="clock fw-semibold" id="clock">--:--:--</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main class="container-fluid px-3 px-lg-4 py-4">
+        <div class="row g-3">
+          <div class="col-12">
+            <div class="panel p-3">
+              <div class="d-flex align-items-start justify-content-between gap-3 flex-wrap">
+                <div>
+                  <div class="fw-semibold">Recent Patients</div>
+                  <div class="small muted">Latest monitored patients and their recent risk state.</div>
+                </div>
+                <span class="badge rounded-pill badge-soft">
+                  <i class="fa-solid fa-database me-1"></i>Last 24h
+                </span>
+              </div>
+
+              <div class="table-responsive mt-3">
+                <table class="table table-sm table-hover table-darkish align-middle mb-0">
+                  <thead>
+                    <tr>
+                      <th>Patient</th>
+                      <th>Unit</th>
+                      <th>Camera</th>
+                      <th>Last Event</th>
+                      <th>Risk</th>
+                      <th>Updated</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td class="fw-semibold">Patient A</td>
+                      <td class="muted">ICU</td>
+                      <td class="muted">ICU-CAM-01</td>
+                      <td>Unassisted stand attempt</td>
+                      <td><span class="status crit"><i class="fa-solid fa-triangle-exclamation"></i>Critical</span></td>
+                      <td class="muted">2 min ago</td>
+                    </tr>
+                    <tr>
+                      <td class="fw-semibold">Patient B</td>
+                      <td class="muted">ICU</td>
+                      <td class="muted">ICU-CAM-02</td>
+                      <td>Line tug risk</td>
+                      <td><span class="status warn"><i class="fa-solid fa-circle-exclamation"></i>Warning</span></td>
+                      <td class="muted">8 min ago</td>
+                    </tr>
+                    <tr>
+                      <td class="fw-semibold">Patient C</td>
+                      <td class="muted">Ward</td>
+                      <td class="muted">Ward-CAM-03</td>
+                      <td>Edge-of-bed posture</td>
+                      <td><span class="status warn"><i class="fa-solid fa-circle-exclamation"></i>Warning</span></td>
+                      <td class="muted">15 min ago</td>
+                    </tr>
+                    <tr>
+                      <td class="fw-semibold">Patient D</td>
+                      <td class="muted">ICU</td>
+                      <td class="muted">ICU-CAM-05</td>
+                      <td>Stable monitoring</td>
+                      <td><span class="status ok"><i class="fa-solid fa-circle-check"></i>OK</span></td>
+                      <td class="muted">22 min ago</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+      function pad2(n) {
+        return String(n).padStart(2, "0");
+      }
+
+      function updateClock() {
+        const now = new Date();
+        const hh = pad2(now.getHours());
+        const mm = pad2(now.getMinutes());
+        const ss = pad2(now.getSeconds());
+        const el = document.getElementById("clock");
+        if (el) el.textContent = `${hh}:${mm}:${ss}`;
+      }
+
+      updateClock();
+      setInterval(updateClock, 1000);
+    </script>
+  </body>
+</html>

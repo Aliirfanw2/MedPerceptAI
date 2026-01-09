@@ -1,5 +1,4 @@
 {% extends "base.html" %}
-{% load static %}
 
 {% block title %}Login | MedPerceptAI{% endblock %}
 
@@ -8,7 +7,7 @@
 		html, body { height: 100%; }
 		body {
 			overflow-x: hidden;
-			background-image: url("{% static 'accounts/img/login-bg.svg' %}");
+			background-image: url("{{ MEDIA_URL }}login.png");
 			background-size: cover;
 			background-position: center;
 			background-repeat: no-repeat;
@@ -17,7 +16,7 @@
 			content: "";
 			position: fixed;
 			inset: 0;
-			background: rgba(248, 249, 250, 0.78);
+			background: rgba(248, 249, 250, 0.22);
 			z-index: 0;
 		}
 		.login-surface { position: relative; z-index: 1; }
@@ -53,6 +52,7 @@
 			<div class="card-body p-4 p-sm-4 p-md-5">
 				<form method="post" novalidate>
 					{% csrf_token %}
+					<input type="hidden" name="next" value="{% firstof next '/dashboard/' %}" />
 
 					{% if form.non_field_errors %}
 						<div class="alert alert-danger">{{ form.non_field_errors }}</div>
@@ -67,7 +67,7 @@
 									<path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" stroke="#6c757d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
 								</svg>
 							</span>
-							<input type="text" name="username" class="form-control" required id="id_username" />
+							<input type="text" name="username" class="form-control" required id="id_username" value="{{ form.username.value|default_if_none:'' }}" autocomplete="username" autocapitalize="none" />
 						</div>
 						{% if form.username.errors %}
 							<div class="text-danger small mt-1">{{ form.username.errors }}</div>
@@ -83,7 +83,7 @@
 									<path d="M6 11h12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1Z" stroke="#6c757d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
 								</svg>
 							</span>
-							<input type="password" name="password" class="form-control" required id="id_password" />
+							<input type="password" name="password" class="form-control" required id="id_password" autocomplete="current-password" />
 						</div>
 						{% if form.password.errors %}
 							<div class="text-danger small mt-1">{{ form.password.errors }}</div>

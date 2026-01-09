@@ -2,19 +2,45 @@
 
 {% block title %}Home | MedPerceptAI{% endblock %}
 
-{% block content %}
-  <section class="bg-white py-5 border rounded-3">
-    <div class="container text-center">
-      <h1 class="display-5 fw-bold text-primary mb-3">MedPerceptAI</h1>
-      <p class="lead text-muted mb-4">
-        AI-Assisted Vision &amp; Intent Monitoring for Patient Safety
-      </p>
+{% block head %}
+  <style>
+    html, body { height: 100%; }
+    body {
+      background-image: url("{{ MEDIA_URL }}home.png");
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+      overflow-x: hidden;
+    }
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background: rgba(248, 249, 250, 0.26);
+      z-index: 0;
+    }
+    main, footer { position: relative; z-index: 1; }
+  </style>
+{% endblock %}
 
-      <div class="d-flex justify-content-center gap-3">
-        <a href="{% url 'login' %}" class="btn btn-primary btn-lg px-4">
-          Proceed to Login
-        </a>
+{% block content %}
+  <div class="container py-4">
+    <section
+      class="py-4 py-md-5 border rounded-3 mx-auto"
+      style="max-width: 980px; background: rgba(255,255,255,0.62); backdrop-filter: blur(10px);"
+    >
+      <div class="px-3 px-md-4 text-center">
+        <h1 class="display-5 fw-bold text-primary mb-3">MedPerceptAI</h1>
+        <p class="lead text-muted mb-4">
+          AI-Assisted Vision &amp; Intent Monitoring for Patient Safety
+        </p>
+
+        <div class="d-flex justify-content-center gap-3">
+          <a href="{% url 'login' %}" class="btn btn-primary btn-lg px-4">
+            Proceed to Login
+          </a>
+        </div>
       </div>
-    </div>
-  </section>
+    </section>
+  </div>
 {% endblock %}

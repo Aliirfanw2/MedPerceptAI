@@ -15,14 +15,14 @@
   {% block head %}{% endblock %}
 </head>
 
-<body class="bg-light">
+<body class="bg-light d-flex flex-column min-vh-100">
 
   <!-- NAVBAR -->
   {% block navbar %}
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
       <div class="container">
         <a class="navbar-brand fw-bold" href="/">
-          🧠 MedPerceptAI
+           MedPerceptAI
         </a>
 
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav">
@@ -55,7 +55,7 @@
   {% endblock %}
 
   <!-- MAIN CONTENT -->
-  <main class="{% block main_class %}container my-5{% endblock %}">
+  <main class="flex-grow-1 {% block main_class %}container my-5{% endblock %}">
 
     <!-- DJANGO MESSAGES -->
     {% if messages %}
@@ -82,7 +82,7 @@
   {% block footer %}
     <footer class="bg-dark text-light py-3 mt-auto">
       <div class="container text-center small">
-        © {% now "Y" %} MedPerceptAI — AI-Based Patient Monitoring 
+        © {% now "Y" %} MedPerceptAI   AI-Based Patient Monitoring 
       </div>
     </footer>
   {% endblock %}
