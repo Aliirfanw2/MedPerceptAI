@@ -1,0 +1,4 @@
+llama-cpp-python
+# RTX 4060 build example:
+# set CMAKE_ARGS=-DLLAMA_CUBLAS=on
+# pip install --no-cache-dir --force-reinstall llama-cpp-python

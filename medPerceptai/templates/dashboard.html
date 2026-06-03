@@ -242,22 +242,62 @@
           linear-gradient(135deg, rgba(2, 6, 23, 0.25), rgba(2, 6, 23, 0.55));
       }
 
+      .feed-stream-host {
+        position: absolute;
+        inset: 0;
+        z-index: 1;
+      }
+
       .feed-video {
         position: absolute;
         inset: 0;
         width: 100%;
         height: 100%;
         object-fit: cover;
+        opacity: 1;
+        background: #020617;
+        visibility: visible;
         z-index: 1;
-        opacity: 0.92;
+      }
+
+      .stream-disconnected {
+        position: absolute;
+        inset: 0;
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        text-align: center;
+        padding: 24px;
+        background: linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(2, 6, 23, 0.98));
+        color: rgba(229, 231, 235, 0.92);
+        z-index: 2;
+      }
+
+      .stream-disconnected.is-visible {
+        display: flex;
+      }
+
+      .stream-disconnected i {
+        font-size: 2rem;
+        color: rgba(239, 68, 68, 0.9);
+      }
+
+      .monitor-layout {
+        align-items: stretch;
       }
 
       .feed-video-overlay {
         position: absolute;
         inset: 0;
-        z-index: 1;
-        background: linear-gradient(135deg, rgba(2, 6, 23, 0.25), rgba(2, 6, 23, 0.55));
+        z-index: 0;
+        background: transparent;
         pointer-events: none;
+      }
+
+      .feed.stream-active .feed-meta .tag.offline-badge {
+        display: none;
       }
 
       .feed-meta {
@@ -375,6 +415,57 @@
         background: #2563eb;
         border-color: #2563eb;
       }
+
+      .monitor-alert-card {
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        background: linear-gradient(180deg, rgba(30, 41, 59, 0.94), rgba(15, 23, 42, 0.88));
+        border-radius: 18px;
+        box-shadow: 0 16px 34px rgba(0, 0, 0, 0.22);
+        transition: border-color 180ms ease, background 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+      }
+
+      .monitor-alert-card.alert-active {
+        border-color: rgba(239, 68, 68, 0.65);
+        background: linear-gradient(180deg, rgba(127, 29, 29, 0.9), rgba(69, 10, 10, 0.88));
+        box-shadow: 0 18px 38px rgba(239, 68, 68, 0.18);
+        transform: translateY(-1px);
+      }
+
+      .monitor-alert-title {
+        font-size: 0.76rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: rgba(229, 231, 235, 0.72);
+      }
+
+      .monitor-alert-intent {
+        font-size: 1rem;
+        font-weight: 600;
+        line-height: 1.4;
+        color: rgba(255, 255, 255, 0.96);
+      }
+
+      .monitor-alert-meta {
+        font-size: 0.85rem;
+        color: rgba(229, 231, 235, 0.72);
+      }
+
+      .monitor-alert-chip {
+        border-radius: 999px;
+        padding: 6px 10px;
+        font-size: 0.8rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(255, 255, 255, 0.06);
+        color: rgba(255, 255, 255, 0.9);
+      }
+
+      .monitor-alert-chip.alert-live {
+        border-color: rgba(239, 68, 68, 0.36);
+        background: rgba(239, 68, 68, 0.16);
+      }
     </style>
   </head>
 
@@ -401,7 +492,7 @@
         <a class="nav-link-dark" href="{% url 'live_monitor' %}">
           <i class="fa-solid fa-camera"></i>
           <span>Cameras</span>
-          <span class="ms-auto badge rounded-pill badge-soft">6</span>
+          <span class="ms-auto badge rounded-pill badge-soft" id="sidebarCameraBadge">{{ registered_cameras|default:0 }}</span>
         </a>
         <a class="nav-link-dark" href="{% url 'alerts' %}">
           <i class="fa-solid fa-triangle-exclamation"></i>
@@ -428,7 +519,7 @@
           </div>
           <div class="flex-grow-1">
             <div class="fw-semibold">{{ user.get_full_name|default:user.get_username|default:"Operator" }}</div>
-            <div class="small muted">Shift: Night • ICU</div>
+            <div class="small muted">{{ layout_shift_label|default:staff_role }}</div>
           </div>
         </div>
       </div>
@@ -438,22 +529,31 @@
       <header class="header">
         <div class="container-fluid py-3 px-3 px-lg-4">
           <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
-            <div class="d-flex align-items-center gap-2">
-              <span class="badge badge-soft">
-                <i class="fa-solid fa-layer-group me-1"></i>
-                Dashboard
-              </span>
-              <span class="muted small">/ Overview</span>
+            <div class="d-flex flex-column">
+              <div class="d-flex align-items-center gap-2">
+                <span class="badge badge-soft">
+                  <i class="fa-solid fa-layer-group me-1"></i>
+                  Dashboard
+                </span>
+                <span class="muted small">/ Overview</span>
+              </div>
+              <div class="small muted mt-1">{{ monitoring_display|default:"Monitoring: Floor 3, Room 302, Cam-1" }}</div>
             </div>
 
             <div class="d-flex align-items-center gap-2 gap-sm-3">
+              <span class="badge badge-soft d-none d-md-inline-flex">
+                <i class="fa-solid fa-video me-1"></i>{{ monitor_source_label|default:"Live Camera Feed" }}
+              </span>
               <div class="d-flex align-items-center gap-2">
                 <span class="muted small d-none d-sm-inline">Camera</span>
                 <select class="form-select form-select-sm" id="cameraSelect" style="min-width: 190px">
-                  <option selected>ICU-CAM-01 (Bed A)</option>
-                  <option>ICU-CAM-02 (Bed B)</option>
-                  <option>Ward-CAM-03 (Hall)</option>
-                  <option>ER-CAM-04 (Entrance)</option>
+                  {% for camera in camera_feeds %}
+                  <option value="{{ camera.id }}" {% if camera.id == selected_camera %}selected{% endif %}>
+                    {{ camera.name }} ({{ camera.subtitle }})
+                  </option>
+                  {% empty %}
+                  <option selected>{{ monitor_camera_id|default:"Cam-1" }}</option>
+                  {% endfor %}
                 </select>
               </div>
 
@@ -472,10 +572,11 @@
             <div class="panel stat-card p-3 h-100">
               <div class="d-flex align-items-start justify-content-between">
                 <div>
-                  <div class="muted small">Active Cameras</div>
-                  <div class="stat-value mt-1">6</div>
-                  <div class="muted small mt-1">
-                    <i class="fa-solid fa-signal me-1"></i>Streaming stable
+                  <div class="muted small">Connected Cameras</div>
+                  <div class="stat-value mt-1" id="connectedCamerasStat">{{ connected_cameras|default:0 }}</div>
+                  <div class="muted small mt-1" id="connectedCamerasMeta">
+                    <i class="fa-solid fa-signal me-1"></i>
+                    <span id="connectedCamerasLabel">{{ registered_cameras|default:0 }} registered</span>
                   </div>
                 </div>
                 <div class="stat-icon">
@@ -490,8 +591,8 @@
               <div class="d-flex align-items-start justify-content-between">
                 <div>
                   <div class="muted small">Real-time Alerts</div>
-                  <div class="stat-value mt-1">0</div>
-                  <div class="muted small mt-1">
+                  <div class="stat-value mt-1" id="activeAlertsStat">0</div>
+                  <div class="muted small mt-1" id="activeAlertsMeta">
                     <i class="fa-solid fa-triangle-exclamation me-1"></i>No critical alerts
                   </div>
                 </div>
@@ -507,9 +608,9 @@
               <div class="d-flex align-items-start justify-content-between">
                 <div>
                   <div class="muted small">Patients Monitored</div>
-                  <div class="stat-value mt-1">18</div>
-                  <div class="muted small mt-1">
-                    <i class="fa-solid fa-bed-pulse me-1"></i>Across ICU + Ward
+                  <div class="stat-value mt-1" id="patientsMonitoredStat">{{ registered_cameras|default:1 }}</div>
+                  <div class="muted small mt-1" id="patientsMonitoredMeta">
+                    <i class="fa-solid fa-bed-pulse me-1"></i>Registered camera endpoints
                   </div>
                 </div>
                 <div class="stat-icon">
@@ -524,9 +625,9 @@
               <div class="d-flex align-items-start justify-content-between">
                 <div>
                   <div class="muted small">System Latency</div>
-                  <div class="stat-value mt-1">124ms</div>
-                  <div class="muted small mt-1">
-                    <i class="fa-solid fa-bolt me-1"></i>Realtime inference
+                  <div class="stat-value mt-1" id="latencyStat">--</div>
+                  <div class="muted small mt-1" id="latencyMeta">
+                    <i class="fa-solid fa-bolt me-1"></i>Waiting for stream metrics
                   </div>
                 </div>
                 <div class="stat-icon">
@@ -537,12 +638,12 @@
           </div>
         </div>
 
-        <div class="row g-3">
+        <div class="row g-3 monitor-layout">
           <div class="col-12 col-xxl-8">
             <div class="panel p-3">
               <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
                 <div>
-                  <div class="fw-semibold">Live Feed {{ selected_camera|default:"ICU-CAM-01" }}</div>
+                  <div class="fw-semibold">Live Feed {{ selected_camera|default:monitor_camera_id }}</div>
                   <div class="small muted">AI overlays: detection • pose estimation • intent banner</div>
                 </div>
                 <div class="d-flex gap-2">
@@ -562,43 +663,36 @@
 
               <div class="feed" id="liveFeed">
                 <div class="feed-inner">
-                  <video
-                    class="feed-video"
-                    id="liveFeedVideo"
-                    autoplay
-                    muted
-                    loop
-                    playsinline
-                    preload="metadata"
-                    src="{{ MEDIA_URL }}demo.mp4"
-                      aria-label="Live feed video"
-                  ></video>
+                  <div class="feed-stream-host">
+                    <img
+                      class="feed-video"
+                      id="video-stream"
+                      src="{% url 'live_stream_feed' %}?v={{ stream_cache_key }}"
+                      alt="Live MJPEG stream from MedPerceptAI"
+                      decoding="async"
+                      loading="eager"
+                      onerror="showDisconnectUI(this)"
+                    />
+                    <div class="stream-disconnected" id="streamDisconnected" aria-live="polite">
+                      <i class="fa-solid fa-plug-circle-xmark" aria-hidden="true"></i>
+                      <div class="fw-semibold">Stream Disconnected</div>
+                      <div class="small muted">Check camera settings or reconnect below.</div>
+                      <button class="btn btn-sm btn-accent text-white mt-1" type="button" id="streamReconnectBtn">
+                        <i class="fa-solid fa-rotate-right me-1"></i>Reconnect
+                      </button>
+                    </div>
+                  </div>
                   <div class="feed-video-overlay" aria-hidden="true"></div>
 
                   <div class="feed-meta">
                     <div class="d-flex gap-2 align-items-center">
                       <span class="tag live"><i class="fa-solid fa-circle me-1"></i>LIVE</span>
-                      <span class="tag"><i class="fa-solid fa-wifi me-1"></i>RTSP</span>
+                      <span class="tag" id="streamSourceTag"><i class="fa-solid fa-wifi me-1"></i>{{ monitor_source_label|default:"Live Camera Feed" }}</span>
                       <span class="tag"><i class="fa-solid fa-brain me-1"></i>AI: ON</span>
                     </div>
                     <div class="d-flex gap-2 align-items-center">
                       <span class="tag"><i class="fa-solid fa-shield-halved me-1"></i>HIPAA Mode</span>
                     </div>
-                  </div>
-
-                  <div class="bbox patient" style="left: 50%; top: 18%; width: 36%; height: 82%;">
-                    <div class="bbox-label">
-                      <i class="fa-solid fa-user me-1" style="color: rgba(239,68,68,0.95)"></i>
-                      Person 98%
-                    </div>
-                  </div>
-
-                  <div class="glass-banner">
-                    <span class="badge rounded-pill px-3 py-2">
-                      <i class="fa-solid fa-triangle-exclamation me-1"></i>
-                      ALERT
-                    </span>
-                    <div class="fw-semibold">⚠️ Intent Detected: Patient attempting to stand unassisted</div>
                   </div>
                 </div>
               </div>
@@ -607,17 +701,34 @@
                 <span class="badge rounded-pill badge-soft px-3 py-2">
                   <i class="fa-solid fa-cube me-1"></i>Model: VLPIS v2.3
                 </span>
-                <span class="badge rounded-pill badge-soft px-3 py-2">
-                  <i class="fa-solid fa-camera me-1"></i>Resolution: 1920×1080
+                <span class="badge rounded-pill badge-soft px-3 py-2" id="streamResolutionBadge">
+                  <i class="fa-solid fa-camera me-1"></i>Resolution: --
                 </span>
-                <span class="badge rounded-pill badge-soft px-3 py-2">
-                  <i class="fa-solid fa-gauge me-1"></i>FPS: 24
+                <span class="badge rounded-pill badge-soft px-3 py-2" id="streamFpsBadge">
+                  <i class="fa-solid fa-gauge me-1"></i>FPS: --
                 </span>
               </div>
             </div>
           </div>
 
           <div class="col-12 col-xxl-4">
+            <div class="monitor-alert-card p-3 mb-3" id="latestAlertCard" aria-live="polite">
+              <div class="d-flex align-items-start justify-content-between gap-3 mb-2">
+                <div>
+                  <div class="monitor-alert-title">Live Intent</div>
+                  <div class="monitor-alert-intent mt-1" id="latestIntentText">System warming up</div>
+                </div>
+                <span class="monitor-alert-chip" id="latestAlertBadge">
+                  <i class="fa-solid fa-shield-heart"></i>
+                  Stable
+                </span>
+              </div>
+              <div class="monitor-alert-meta d-flex flex-wrap gap-3">
+                <span id="latestAlertSource">Source: --</span>
+                <span id="latestAlertUpdated">Updated: --</span>
+              </div>
+            </div>
+
             <div class="panel p-3 mb-3">
               <div class="d-flex align-items-center justify-content-between mb-2">
                 <div class="fw-semibold">Real-time Logs</div>
@@ -625,7 +736,9 @@
                   <i class="fa-solid fa-terminal me-1"></i>JSON
                 </span>
               </div>
-              <div class="terminal" id="logTerminal" aria-label="Real-time JSON logs"></div>
+              <div class="terminal" id="logTerminal" aria-label="Real-time JSON logs">
+                <div class="line muted">Waiting for live inference events…</div>
+              </div>
             </div>
           </div>
         </div>
@@ -652,63 +765,46 @@
       setInterval(updateClock, 1000);
 
       const terminalEl = document.getElementById("logTerminal");
-
-      const events = [
-        { type: "pose_update", msg: "Pose keypoints updated" },
-        { type: "intent_signal", msg: "Intent classifier score changed" },
-        { type: "person_detected", msg: "Person detected in region" },
-        { type: "alert_emitted", msg: "Alert emitted: stand_attempt" },
-        { type: "latency", msg: "Inference latency recorded" },
-      ];
-
-      function randomChoice(arr) {
-        return arr[Math.floor(Math.random() * arr.length)];
-      }
-
-      function isoNow() {
-        return new Date().toISOString();
-      }
-
-      const logBuffer = [];
+      const logKeysSeen = new Set();
 
       function appendLogLine(obj) {
-        logBuffer.push(JSON.stringify(obj));
-        while (logBuffer.length > 80) logBuffer.shift();
-
-        terminalEl.innerHTML = "";
-        for (const line of logBuffer) {
-          const div = document.createElement("div");
-          div.className = "line";
-          div.textContent = line;
-          terminalEl.appendChild(div);
+        if (!terminalEl) return;
+        const key = `${obj.ts || ""}:${obj.event || ""}:${obj.intent || ""}`;
+        if (logKeysSeen.has(key)) return;
+        logKeysSeen.add(key);
+        while (logKeysSeen.size > 120) {
+          const first = logKeysSeen.values().next().value;
+          logKeysSeen.delete(first);
         }
 
+        const div = document.createElement("div");
+        div.className = "line";
+        div.textContent = JSON.stringify(obj);
+        terminalEl.appendChild(div);
+        while (terminalEl.children.length > 80) {
+          terminalEl.removeChild(terminalEl.firstChild);
+        }
         terminalEl.scrollTop = terminalEl.scrollHeight;
       }
 
-      function simulateLog() {
-        const evt = randomChoice(events);
-        const camera = document.getElementById("cameraSelect")?.value?.split(" ")[0] || "ICU-CAM-01";
-
-        const payload = {
-          ts: isoNow(),
-          camera,
-          event: evt.type,
-          message: evt.msg,
-          confidence: Number((0.82 + Math.random() * 0.17).toFixed(2)),
-          bbox: {
-            x: Number((0.18 + Math.random() * 0.55).toFixed(2)),
-            y: Number((0.12 + Math.random() * 0.55).toFixed(2)),
-            w: Number((0.12 + Math.random() * 0.28).toFixed(2)),
-            h: Number((0.18 + Math.random() * 0.48).toFixed(2)),
-          },
-        };
-
-        appendLogLine(payload);
+      function renderRecentLogs(state) {
+        const logs = Array.isArray(state?.recent_logs) ? state.recent_logs : [];
+        if (!logs.length && terminalEl && terminalEl.children.length === 1) {
+          return;
+        }
+        logs.slice(0, 12).reverse().forEach((entry) => {
+          appendLogLine({
+            ts: entry.ts ? new Date(entry.ts * 1000).toISOString() : new Date().toISOString(),
+            camera: entry.camera_id,
+            source: entry.source,
+            event: entry.event,
+            intent: entry.intent,
+            alert: entry.alert,
+            latency_ms: entry.latency_ms,
+            bbox: entry.bbox,
+          });
+        });
       }
-
-      for (let i = 0; i < 6; i++) simulateLog();
-      setInterval(simulateLog, 2000);
 
       const feedEl = document.getElementById("liveFeed");
       const feedFullscreenBtn = document.getElementById("feedFullscreenBtn");
@@ -767,12 +863,200 @@
       document.addEventListener("fullscreenchange", onFullscreenChange);
       document.addEventListener("webkitfullscreenchange", onFullscreenChange);
 
-      const liveFeedVideo = document.getElementById("liveFeedVideo");
-      if (liveFeedVideo) {
-        liveFeedVideo.addEventListener("error", () => {
-          liveFeedVideo.classList.add("d-none");
-        });
+      const videoStream = document.getElementById("video-stream");
+      const streamDisconnected = document.getElementById("streamDisconnected");
+      const streamReconnectBtn = document.getElementById("streamReconnectBtn");
+      const streamBaseUrl = "{% url 'live_stream_feed' %}";
+      let streamRetryTimer = null;
+
+      function showStreamDisconnected() {
+        if (streamDisconnected) {
+          streamDisconnected.classList.add("is-visible");
+        }
       }
+
+      function showStreamConnected() {
+        if (streamDisconnected) {
+          streamDisconnected.classList.remove("is-visible");
+        }
+      }
+
+      window.showDisconnectUI = function showDisconnectUI(imgEl) {
+        showStreamDisconnected();
+        if (streamRetryTimer) {
+          clearTimeout(streamRetryTimer);
+        }
+        streamRetryTimer = setTimeout(() => reconnectLiveStream(imgEl), 5000);
+      };
+
+      window.handleStreamError = window.showDisconnectUI;
+
+      function reconnectLiveStream(imgEl) {
+        const target = imgEl || videoStream;
+        if (!target) return;
+        showStreamConnected();
+        const separator = streamBaseUrl.includes("?") ? "&" : "?";
+        target.onerror = function onStreamError() {
+          showDisconnectUI(target);
+        };
+        target.src = `${streamBaseUrl}${separator}t=${Date.now()}`;
+      }
+
+      if (streamReconnectBtn) {
+        streamReconnectBtn.addEventListener("click", () => reconnectLiveStream(videoStream));
+      }
+
+      if (videoStream) {
+        showStreamConnected();
+        videoStream.addEventListener("load", showStreamConnected);
+      }
+
+      const latestIntentText = document.getElementById("latestIntentText");
+      const latestAlertCard = document.getElementById("latestAlertCard");
+      const latestAlertBadge = document.getElementById("latestAlertBadge");
+      const latestAlertSource = document.getElementById("latestAlertSource");
+      const latestAlertUpdated = document.getElementById("latestAlertUpdated");
+      let alertTonePlayed = false;
+
+      function playAlertTone() {
+        if (alertTonePlayed) return;
+        alertTonePlayed = true;
+        try {
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          if (!AudioCtx) return;
+          const ctx = new AudioCtx();
+          const oscillator = ctx.createOscillator();
+          const gainNode = ctx.createGain();
+          oscillator.type = "sine";
+          oscillator.frequency.value = 880;
+          oscillator.connect(gainNode);
+          gainNode.connect(ctx.destination);
+          gainNode.gain.value = 0.0001;
+          oscillator.start();
+          gainNode.gain.exponentialRampToValueAtTime(0.15, ctx.currentTime + 0.02);
+          gainNode.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.35);
+          oscillator.stop(ctx.currentTime + 0.38);
+          oscillator.onended = () => ctx.close().catch(() => {});
+        } catch (error) {
+          console.warn("Alert tone unavailable", error);
+        }
+      }
+
+      const connectedCamerasStat = document.getElementById("connectedCamerasStat");
+      const connectedCamerasLabel = document.getElementById("connectedCamerasLabel");
+      const sidebarCameraBadge = document.getElementById("sidebarCameraBadge");
+      const activeAlertsStat = document.getElementById("activeAlertsStat");
+      const activeAlertsMeta = document.getElementById("activeAlertsMeta");
+      const patientsMonitoredStat = document.getElementById("patientsMonitoredStat");
+      const latencyStat = document.getElementById("latencyStat");
+      const latencyMeta = document.getElementById("latencyMeta");
+      const streamResolutionBadge = document.getElementById("streamResolutionBadge");
+      const streamFpsBadge = document.getElementById("streamFpsBadge");
+      const liveFeed = document.getElementById("liveFeed");
+
+      function updateCameraStats(state) {
+        const connected = Number(state?.connected_cameras ?? 0);
+        const registered = Number(state?.registered_cameras ?? connected);
+        if (connectedCamerasStat) connectedCamerasStat.textContent = String(connected);
+        if (sidebarCameraBadge) sidebarCameraBadge.textContent = String(registered);
+        if (connectedCamerasLabel) {
+          connectedCamerasLabel.textContent =
+            connected > 0
+              ? `${connected} online • ${registered} registered`
+              : `${registered} registered • stream offline`;
+        }
+        if (patientsMonitoredStat) {
+          patientsMonitoredStat.textContent = String(state?.patients_monitored ?? registered ?? 0);
+        }
+        if (activeAlertsStat) {
+          activeAlertsStat.textContent = String(state?.active_alerts ?? (state?.alert ? 1 : 0));
+        }
+        if (activeAlertsMeta) {
+          activeAlertsMeta.innerHTML = state?.alert
+            ? '<i class="fa-solid fa-triangle-exclamation me-1"></i>Critical alert active'
+            : '<i class="fa-solid fa-triangle-exclamation me-1"></i>No critical alerts';
+        }
+        if (latencyStat) {
+          latencyStat.textContent =
+            state?.latency_ms != null ? `${Math.round(Number(state.latency_ms))}ms` : "--";
+        }
+        if (latencyMeta) {
+          const fps = state?.stream_fps != null ? Number(state.stream_fps) : 0;
+          latencyMeta.innerHTML = `<i class="fa-solid fa-bolt me-1"></i>${fps > 0 ? `${fps} FPS stream` : "Realtime inference"}`;
+        }
+        if (streamResolutionBadge && state?.frame_width && state?.frame_height) {
+          streamResolutionBadge.innerHTML = `<i class="fa-solid fa-camera me-1"></i>Resolution: ${state.frame_width}×${state.frame_height}`;
+        }
+        if (streamFpsBadge && state?.stream_fps != null) {
+          streamFpsBadge.innerHTML = `<i class="fa-solid fa-gauge me-1"></i>FPS: ${state.stream_fps}`;
+        }
+        const streamSourceTag = document.getElementById("streamSourceTag");
+        if (streamSourceTag && state?.source) {
+          const label = String(state.source).startsWith("video:")
+            ? "Pre-recorded Video"
+            : "Live Camera Feed";
+          streamSourceTag.innerHTML = `<i class="fa-solid fa-wifi me-1"></i>${label}`;
+        }
+        if (liveFeed) {
+          liveFeed.classList.toggle("stream-active", connected > 0 || state?.status === "ok");
+        }
+      }
+
+      function updateAlertUi(state) {
+        if (!latestIntentText || !latestAlertCard || !latestAlertBadge) return;
+
+        updateCameraStats(state);
+        renderRecentLogs(state);
+        if (state?.status === "ok" || Number(state?.connected_cameras) > 0) {
+          showStreamConnected();
+        }
+
+        const intent = state?.intent || "No intent available";
+        const alertActive = Boolean(state?.alert);
+        const source = state?.source || "--";
+        const updatedAt = state?.updated_at ? new Date(state.updated_at * 1000).toLocaleTimeString() : "--";
+
+        latestIntentText.textContent = intent;
+        latestAlertSource.textContent = `Source: ${source}`;
+        latestAlertUpdated.textContent = `Updated: ${updatedAt}`;
+        latestAlertCard.classList.toggle("alert-active", alertActive);
+        latestAlertBadge.classList.toggle("alert-live", alertActive);
+        latestAlertBadge.innerHTML = alertActive
+          ? '<i class="fa-solid fa-triangle-exclamation"></i> Alert'
+          : '<i class="fa-solid fa-shield-heart"></i> Stable';
+
+        if (alertActive) {
+          playAlertTone();
+        } else {
+          alertTonePlayed = false;
+        }
+      }
+
+      async function fetchLatestAlert() {
+        try {
+          const response = await fetch("{% url 'get_latest_alert' %}", {
+            headers: { Accept: "application/json" },
+            cache: "no-store",
+            credentials: "same-origin",
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+
+          const data = await response.json();
+          updateAlertUi(data);
+        } catch (error) {
+          console.warn("Latest alert fetch failed", error);
+          if (latestAlertBadge && latestIntentText) {
+            latestAlertBadge.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Syncing';
+            latestIntentText.textContent = "Waiting for live inference...";
+          }
+        }
+      }
+
+      fetchLatestAlert();
+      setInterval(fetchLatestAlert, 1000);
     </script>
   </body>
 </html>

@@ -167,7 +167,7 @@
         <a class="nav-link-dark" href="{% url 'live_monitor' %}">
           <i class="fa-solid fa-camera"></i>
           <span>Cameras</span>
-          <span class="ms-auto badge rounded-pill badge-soft">6</span>
+          <span class="ms-auto badge rounded-pill badge-soft">{{ layout_registered_cameras|default:0 }}</span>
         </a>
         <a class="nav-link-dark active" href="{% url 'alerts' %}">
           <i class="fa-solid fa-triangle-exclamation"></i>
@@ -194,7 +194,7 @@
           </div>
           <div class="flex-grow-1">
             <div class="fw-semibold">{{ user.get_full_name|default:user.get_username|default:"Operator" }}</div>
-            <div class="small muted">Shift: Night • ICU</div>
+            <div class="small muted">{{ layout_shift_label|default:staff_role }}</div>
           </div>
         </div>
       </div>
@@ -228,46 +228,23 @@
       <main class="container-fluid px-3 px-lg-4 py-4">
         <div class="panel p-3">
           <div class="fw-semibold mb-2">Recent Alerts</div>
-          <div class="d-grid gap-2">
+          <div class="d-grid gap-2" id="alertsList">
+            {% for alert in alert_events %}
             <div class="alert-item">
               <div class="d-flex align-items-start justify-content-between gap-2">
                 <div>
-                  <div class="fw-semibold">Unassisted Stand Attempt</div>
-                  <div class="small muted">ICU-CAM-01 • Bed A</div>
+                  <div class="fw-semibold">{{ alert.intent }}</div>
+                  <div class="small muted">{{ alert.camera_id }} • Floor {{ alert.floor }} • Room {{ alert.room_number }}</div>
+                  <div class="small muted">{{ alert.updated_label }}</div>
                 </div>
-                <span class="badge badge-critical rounded-pill">Critical</span>
+                <span class="badge {{ alert.severity_class|default:'badge-warning' }} rounded-pill">{{ alert.severity|default:'Warning' }}</span>
               </div>
             </div>
-
-            <div class="alert-item">
-              <div class="d-flex align-items-start justify-content-between gap-2">
-                <div>
-                  <div class="fw-semibold">Line Tug Risk Detected</div>
-                  <div class="small muted">ICU-CAM-02 • Bed B</div>
-                </div>
-                <span class="badge badge-warning rounded-pill">Warning</span>
-              </div>
+            {% empty %}
+            <div class="alert-item" id="alertsEmpty">
+              <div class="small muted">No alerts yet. Keep the Dashboard stream running — events sync here automatically.</div>
             </div>
-
-            <div class="alert-item">
-              <div class="d-flex align-items-start justify-content-between gap-2">
-                <div>
-                  <div class="fw-semibold">Edge-of-Bed Posture</div>
-                  <div class="small muted">Ward-CAM-03 • Hall</div>
-                </div>
-                <span class="badge badge-warning rounded-pill">Warning</span>
-              </div>
-            </div>
-
-            <div class="alert-item">
-              <div class="d-flex align-items-start justify-content-between gap-2">
-                <div>
-                  <div class="fw-semibold">Fall Risk Escalation</div>
-                  <div class="small muted">ICU-CAM-01 • Bed A</div>
-                </div>
-                <span class="badge badge-critical rounded-pill">Critical</span>
-              </div>
-            </div>
+            {% endfor %}
           </div>
         </div>
       </main>
@@ -290,6 +267,50 @@
 
       updateClock();
       setInterval(updateClock, 1000);
+
+      const alertsList = document.getElementById("alertsList");
+
+      function renderAlerts(items) {
+        if (!alertsList) return;
+        if (!Array.isArray(items) || items.length === 0) {
+          alertsList.innerHTML =
+            '<div class="alert-item"><div class="small muted">No alerts yet. Keep the Dashboard stream running — events sync here automatically.</div></div>';
+          return;
+        }
+        alertsList.innerHTML = items
+          .map(
+            (alert) => `
+            <div class="alert-item">
+              <div class="d-flex align-items-start justify-content-between gap-2">
+                <div>
+                  <div class="fw-semibold">${alert.intent || "Alert"}</div>
+                  <div class="small muted">${alert.camera_id || "--"} • Floor ${alert.floor || "--"} • Room ${alert.room_number || "--"}</div>
+                  <div class="small muted">${alert.updated_label || "--"}</div>
+                </div>
+                <span class="badge ${alert.severity_class || "badge-warning"} rounded-pill">${alert.severity || "Warning"}</span>
+              </div>
+            </div>`
+          )
+          .join("");
+      }
+
+      async function syncAlerts() {
+        try {
+          const response = await fetch("{% url 'get_latest_alert' %}", {
+            headers: { Accept: "application/json" },
+            cache: "no-store",
+            credentials: "same-origin",
+          });
+          if (!response.ok) return;
+          const data = await response.json();
+          renderAlerts(data.recent_alerts || []);
+        } catch (error) {
+          console.warn("Alerts sync failed", error);
+        }
+      }
+
+      syncAlerts();
+      setInterval(syncAlerts, 2000);
     </script>
   </body>
 </html>

@@ -5,480 +5,284 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>MedPerceptAI — Settings</title>
-
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
-      rel="stylesheet"
-    />
-
-    <link
-      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
-      rel="stylesheet"
-    />
-
-    <link
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
-      rel="stylesheet"
-    />
-
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet" />
     <style>
-      :root {
-        --bg: #0f172a;
-        --panel: #1e293b;
-        --text: #e5e7eb;
-        --muted: rgba(229, 231, 235, 0.68);
-
-        --accent: #3b82f6;
-        --danger: #ef4444;
-        --success: #22c55e;
-      }
-
-      html,
+      :root { --bg: #0f172a; --text: #e5e7eb; --muted: rgba(229,231,235,.68); --accent: #3b82f6; }
       body {
-        height: 100%;
+        font-family: Inter, system-ui, sans-serif;
+        background: var(--bg); color: var(--text); min-height: 100vh;
       }
-
-      body {
-        font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-        background: radial-gradient(1200px 800px at 15% 0%, rgba(59, 130, 246, 0.14), transparent 55%),
-          radial-gradient(1000px 700px at 90% 25%, rgba(239, 68, 68, 0.1), transparent 55%),
-          var(--bg);
-        color: var(--text);
-        overflow-x: hidden;
+      .sidebar { width: 260px; background: #1e293b; border-right: 1px solid rgba(255,255,255,.06); position: fixed; inset: 0 auto 0 0; padding: 1rem; }
+      .content { margin-left: 260px; }
+      @media (max-width: 991px) { .sidebar { position: relative; width: 100%; } .content { margin-left: 0; } }
+      .panel { background: rgba(30,41,59,.9); border: 1px solid rgba(255,255,255,.06); border-radius: 14px; padding: 1.25rem; }
+      .panel-soft { background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08); border-radius: 12px; padding: 1rem; }
+      .muted { color: var(--muted); }
+      .nav-link-dark { color: rgba(229,231,235,.8); text-decoration: none; display: flex; gap: .5rem; padding: .6rem .75rem; border-radius: 10px; }
+      .nav-link-dark:hover, .nav-link-dark.active { background: rgba(59,130,246,.15); color: #fff; }
+      .form-control, .form-select { background: rgba(15,23,42,.6); border-color: rgba(255,255,255,.12); color: #fff; border-radius: 10px; }
+      .form-control:focus, .form-select:focus { background: rgba(15,23,42,.8); color: #fff; border-color: var(--accent); box-shadow: none; }
+      .btn-accent { background: var(--accent); color: #fff; border: none; }
+      .help-box { border-left: 3px solid var(--accent); padding-left: 1rem; }
+      .step-num { width: 28px; height: 28px; border-radius: 50%; background: var(--accent); display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: .85rem; }
+      .form-check-input { width: 2.5rem; height: 1.25rem; }
+      .form-control:read-only {
+        opacity: 0.55;
+        cursor: not-allowed;
       }
-
-      .sidebar {
-        width: 280px;
-        background: linear-gradient(180deg, rgba(30, 41, 59, 0.96), rgba(30, 41, 59, 0.9));
-        border-right: 1px solid rgba(255, 255, 255, 0.06);
-        position: fixed;
-        inset: 0 auto 0 0;
-        z-index: 10;
-      }
-
-      .content {
-        margin-left: 280px;
-        min-height: 100vh;
-      }
-
-      @media (max-width: 991.98px) {
-        .sidebar {
-          position: relative;
-          width: 100%;
-          height: auto;
-        }
-        .content {
-          margin-left: 0;
-        }
-      }
-
-      .panel {
-        background: linear-gradient(180deg, rgba(30, 41, 59, 0.92), rgba(30, 41, 59, 0.85));
-        border: 1px solid rgba(255, 255, 255, 0.06);
-        border-radius: 14px;
-      }
-
-      .panel-soft {
-        background: rgba(30, 41, 59, 0.72);
-        border: 1px solid rgba(255, 255, 255, 0.06);
-        border-radius: 14px;
-      }
-
-      .muted {
-        color: var(--muted);
-      }
-
-      .nav-link-dark {
-        color: rgba(229, 231, 235, 0.75);
-        border-radius: 12px;
-        padding: 10px 12px;
-        display: flex;
-        gap: 10px;
-        align-items: center;
-        text-decoration: none;
-      }
-
-      .nav-link-dark:hover {
-        background: rgba(59, 130, 246, 0.1);
-        color: rgba(229, 231, 235, 0.92);
-      }
-
-      .nav-link-dark.active {
-        background: rgba(59, 130, 246, 0.16);
-        color: rgba(229, 231, 235, 0.96);
-        border: 1px solid rgba(59, 130, 246, 0.2);
-      }
-
-      .header {
-        position: sticky;
-        top: 0;
-        z-index: 5;
-        backdrop-filter: blur(12px);
-        background: rgba(15, 23, 42, 0.72);
-        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-      }
-
-      .badge-soft {
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        background: rgba(255, 255, 255, 0.06);
-        color: rgba(229, 231, 235, 0.86);
-      }
-
-      .clock {
-        font-variant-numeric: tabular-nums;
-        letter-spacing: 0.3px;
-      }
-
-      .form-select,
-      .btn,
-      .form-control {
-        border-radius: 12px;
-      }
-
-      .form-select {
-        background-color: rgba(30, 41, 59, 0.75);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        color: rgba(229, 231, 235, 0.92);
-      }
-
-      .form-control {
-        background-color: rgba(30, 41, 59, 0.75);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        color: rgba(229, 231, 235, 0.92);
-      }
-
-      .form-control::placeholder {
-        color: rgba(229, 231, 235, 0.55);
-      }
-
-      .form-control:focus {
-        box-shadow: 0 0 0 0.2rem rgba(59, 130, 246, 0.2);
-        border-color: rgba(59, 130, 246, 0.55);
-        background-color: rgba(30, 41, 59, 0.78);
-        color: rgba(229, 231, 235, 0.95);
-      }
-
-      .form-select:focus {
-        box-shadow: 0 0 0 0.2rem rgba(59, 130, 246, 0.2);
-        border-color: rgba(59, 130, 246, 0.55);
-      }
-
-      .form-check-input {
-        background-color: rgba(30, 41, 59, 0.75);
-        border: 1px solid rgba(255, 255, 255, 0.18);
-      }
-
-      .form-check-input:checked {
-        background-color: var(--accent);
-        border-color: rgba(59, 130, 246, 0.55);
-      }
-
-      .form-check-input:focus {
-        box-shadow: 0 0 0 0.2rem rgba(59, 130, 246, 0.2);
-        border-color: rgba(59, 130, 246, 0.55);
-      }
-
-      .btn-accent {
-        background: var(--accent);
-        border-color: rgba(59, 130, 246, 0.55);
-      }
-
-      .btn-accent:hover {
-        background: #2563eb;
-        border-color: #2563eb;
-      }
+      .errorlist { color: #f87171; margin: 0; padding-left: 1rem; font-size: .85rem; list-style: disc; }
     </style>
   </head>
-
   <body>
-    <aside class="sidebar d-flex flex-column p-3 p-lg-4">
-      <div class="d-flex align-items-center gap-2 mb-3">
-        <div
-          class="d-inline-flex align-items-center justify-content-center rounded-3"
-          style="width: 38px; height: 38px; background: rgba(59,130,246,0.18); border: 1px solid rgba(59,130,246,0.25);"
-        >
-          <i class="fa-solid fa-heart-pulse" style="color: rgba(229,231,235,0.92)"></i>
-        </div>
-        <div>
-          <div class="fw-bold">MedPerceptAI</div>
-          <div class="small muted">Real-Time Monitoring</div>
-        </div>
-      </div>
-
-      <div class="panel-soft p-2 mb-3">
-        <a class="nav-link-dark" href="{% url 'dashboard' %}">
-          <i class="fa-solid fa-gauge-high"></i>
-          <span>Dashboard</span>
-        </a>
-        <a class="nav-link-dark" href="{% url 'live_monitor' %}">
-          <i class="fa-solid fa-camera"></i>
-          <span>Cameras</span>
-          <span class="ms-auto badge rounded-pill badge-soft">6</span>
-        </a>
-        <a class="nav-link-dark" href="{% url 'alerts' %}">
-          <i class="fa-solid fa-triangle-exclamation"></i>
-          <span>Alerts</span>
-        </a>
-        <a class="nav-link-dark" href="{% url 'patient_history' %}">
-          <i class="fa-solid fa-notes-medical"></i>
-          <span>Patient History</span>
-        </a>
-        <a class="nav-link-dark active" href="{% url 'settings' %}">
-          <i class="fa-solid fa-gear"></i>
-          <span>Settings</span>
-        </a>
-      </div>
-
-      <div class="mt-auto">
-        <div class="panel p-3 d-flex align-items-center gap-3">
-          <div
-            class="rounded-circle d-inline-flex align-items-center justify-content-center"
-            style="width: 44px; height: 44px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.10);"
-            aria-hidden="true"
-          >
-            <i class="fa-solid fa-user-doctor muted"></i>
-          </div>
-          <div class="flex-grow-1">
-            <div class="fw-semibold">{{ user.get_full_name|default:user.get_username|default:"Operator" }}</div>
-            <div class="small muted">Shift: Night • ICU</div>
-          </div>
-        </div>
+    <aside class="sidebar d-flex flex-column">
+      <div class="fw-bold mb-3">MedPerceptAI</div>
+      <nav class="d-flex flex-column gap-1 mb-3">
+        <a class="nav-link-dark" href="{% url 'dashboard' %}"><i class="fa-solid fa-gauge-high"></i> Dashboard</a>
+        <a class="nav-link-dark" href="{% url 'live_monitor' %}"><i class="fa-solid fa-camera"></i> Cameras</a>
+        <a class="nav-link-dark" href="{% url 'alerts' %}"><i class="fa-solid fa-bell"></i> Alerts</a>
+        <a class="nav-link-dark" href="{% url 'patient_history' %}"><i class="fa-solid fa-notes-medical"></i> History</a>
+        <a class="nav-link-dark active" href="{% url 'settings' %}"><i class="fa-solid fa-gear"></i> Settings</a>
+      </nav>
+      <div class="mt-auto small muted">
+        {{ user.username }}<br />{{ staff_role }}
       </div>
     </aside>
 
-    <div class="content">
-      <header class="header">
-        <div class="container-fluid py-3 px-3 px-lg-4">
-          <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+    <main class="content p-4">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1 class="h4 mb-0">Settings</h1>
+        <span id="clock" class="muted">--:--:--</span>
+      </div>
+
+      {% if messages %}
+        {% for message in messages %}
+          <div class="alert alert-success border-0 mb-3" style="background: rgba(34,197,94,.15); color: #fff;">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+
+      <!-- Profile (everyone) -->
+      <div class="panel mb-3">
+        <div class="fw-semibold mb-2"><i class="fa-solid fa-id-card me-1"></i> Your login profile</div>
+        <div class="row g-2 small">
+          <div class="col-md-4"><span class="muted">Username:</span> <strong>{{ user.username }}</strong></div>
+          <div class="col-md-4"><span class="muted">Role:</span> <strong>{{ staff_role }}</strong></div>
+          <div class="col-md-4"><span class="muted">Building / Floor:</span> <strong>{{ assigned_building }} / {{ assigned_floor }}</strong></div>
+        </div>
+        {% if not has_staff_profile and not can_edit_system_settings %}
+          <div class="text-warning small mt-2">No staff profile linked — contact your Admin to assign role, building, and floor.</div>
+        {% elif not has_staff_profile and can_edit_system_settings %}
+          <div class="text-warning small mt-2">You are Admin (superuser). Create a staff profile in Django Admin if you need location-based alerts.</div>
+        {% endif %}
+      </div>
+
+      {% if can_edit_system_settings %}
+      <!-- Admin help -->
+      <div class="panel mb-3 help-box">
+        <div class="fw-semibold mb-1">Quick guide (Admin)</div>
+        <ol class="small muted mb-0 ps-3">
+          <li><strong>Step 1</strong> — Choose camera or demo video, set <strong>Building + Floor</strong> (must match staff accounts).</li>
+          <li><strong>Step 2</strong> — Keep <strong>Llama-3 OFF</strong> for smooth video; turn ON only for deep AI (slow on CPU).</li>
+          <li><strong>Step 3</strong> — Create staff username + password; they login at <code>/login/</code>.</li>
+          <li>Click <strong>Save monitoring</strong>, then open <a href="{% url 'dashboard' %}" class="text-info">Dashboard</a>.</li>
+        </ol>
+      </div>
+
+      <!-- Monitoring -->
+      <div class="panel mb-3">
+        <form method="post" action="{% url 'settings' %}">
+          {% csrf_token %}
+          <input type="hidden" name="form_action" value="save_monitoring" />
+          <div class="d-flex justify-content-between align-items-center mb-3">
             <div class="d-flex align-items-center gap-2">
-              <span class="badge badge-soft">
-                <i class="fa-solid fa-gear me-1"></i>
-                Settings
-              </span>
-              <span class="muted small">/ Preferences</span>
+              <span class="step-num">1</span>
+              <span class="fw-semibold">Live monitoring setup</span>
             </div>
+            <button type="submit" class="btn btn-sm btn-accent"><i class="fa-solid fa-floppy-disk me-1"></i>Save monitoring</button>
+          </div>
 
-            <div class="d-flex align-items-center gap-2 gap-sm-3">
-              <div class="panel-soft px-3 py-2 d-flex align-items-center gap-2">
-                <i class="fa-regular fa-clock muted"></i>
-                <span class="clock fw-semibold" id="clock">--:--:--</span>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label small muted">Video source</label>
+              <select class="form-select" name="monitor_source" id="monitor_source">
+                <option value="camera" {% if monitor_source != 'video' %}selected{% endif %}>Webcam / Camera</option>
+                <option value="video" {% if monitor_source == 'video' %}selected{% endif %}>Demo video file</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small muted">Camera device number</label>
+              <input class="form-control" name="camera_index" id="camera_index" value="{{ monitor_camera_index|default:0 }}" />
+              <div class="small muted mt-1">Usually 0 for built-in webcam</div>
+            </div>
+            <div class="col-12">
+              <label class="form-label small muted">Demo video path (only if demo video selected)</label>
+              <input class="form-control" name="video_path" id="video_path" value="{{ monitor_video_path|default:'' }}" placeholder="media/demo.mp4" />
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small muted">Building name</label>
+              <input class="form-control" name="building_name" value="{{ monitor_building|default:'Main Building' }}" required />
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small muted">Floor</label>
+              <input class="form-control" name="floor_number" value="{{ monitor_floor_number|default:'3' }}" required />
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small muted">Room</label>
+              <input class="form-control" name="room_number" value="{{ monitor_room_number|default:'302' }}" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small muted">Camera label</label>
+              <input class="form-control" name="camera_id" value="{{ monitor_camera_id|default:'Cam-1' }}" />
+            </div>
+          </div>
+
+          <div class="panel-soft mt-3">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+              <div>
+                <span class="step-num">2</span>
+                <strong class="ms-1">Enable Advanced Reasoning (Llama-3)</strong>
+                <div class="small muted">OFF = fast video • ON = slow CPU reasoning</div>
+              </div>
+              <div class="form-check form-switch m-0">
+                <input class="form-check-input" type="checkbox" name="enable_ai_reasoning" id="enable_ai_reasoning" {% if enable_ai_reasoning %}checked{% endif %} />
+                <label class="form-check-label" for="enable_ai_reasoning">{% if enable_ai_reasoning %}ON{% else %}OFF{% endif %}</label>
               </div>
             </div>
           </div>
+        </form>
+      </div>
+
+      <!-- Staff accounts -->
+      <div class="panel mb-3">
+        <div class="d-flex align-items-center gap-2 mb-3">
+          <span class="step-num">3</span>
+          <span class="fw-semibold">Create staff login (username + password)</span>
         </div>
-      </header>
-
-      <main class="container-fluid px-3 px-lg-4 py-4">
-        <div class="row g-3">
-          <div class="col-12 col-xxl-8">
-            <div class="panel p-3">
-              <div class="d-flex align-items-start justify-content-between gap-3 flex-wrap">
-                <div>
-                  <div class="fw-semibold mb-1">Project Settings</div>
-                  <div class="small muted">These controls are not yet connected to saved preferences.</div>
-                </div>
-
-                <button class="btn btn-sm btn-accent text-white" type="button" disabled title="Not connected yet">
-                  <i class="fa-solid fa-floppy-disk me-1"></i>Save Changes
-                </button>
-              </div>
-
-              <div class="row g-3 mt-1">
-                <div class="col-12">
-                  <div class="panel-soft p-3">
-                    <div class="d-flex align-items-center justify-content-between gap-2 flex-wrap">
-                      <div>
-                        <div class="fw-semibold">Account</div>
-                        <div class="small muted">Signed-in operator and default workspace.</div>
-                      </div>
-                      <form method="post" action="{% url 'logout' %}" class="m-0">
-                        {% csrf_token %}
-                        <button class="btn btn-sm btn-outline-light" type="submit" style="border-color: rgba(255,255,255,0.14);">
-                          <i class="fa-solid fa-right-from-bracket me-1"></i>Logout
-                        </button>
-                      </form>
-                    </div>
-
-                    <div class="row g-3 mt-1">
-                      <div class="col-12 col-md-6">
-                        <label class="form-label small muted mb-1">Operator</label>
-                        <input class="form-control" value="{{ user.get_username }}" disabled />
-                      </div>
-                      <div class="col-12 col-md-6">
-                        <label class="form-label small muted mb-1">Default Unit</label>
-                        <select class="form-select">
-                          <option selected>ICU</option>
-                          <option>Ward</option>
-                          <option>ER</option>
-                          <option>OT</option>
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="col-12">
-                  <div class="panel-soft p-3">
-                    <div class="fw-semibold">AI Monitoring</div>
-                    <div class="small muted">Controls for overlays and inference behavior.</div>
-
-                    <div class="row g-3 mt-1">
-                      <div class="col-12 col-md-6">
-                        <label class="form-label small muted mb-1">Model</label>
-                        <select class="form-select">
-                          <option selected>VLPIS v2.3</option>
-                          <option>VLPIS v2.2</option>
-                          <option>VLPIS v2.1</option>
-                        </select>
-                      </div>
-                      <div class="col-12 col-md-6">
-                        <label class="form-label small muted mb-1">Inference Profile</label>
-                        <select class="form-select">
-                          <option selected>Balanced</option>
-                          <option>Low Latency</option>
-                          <option>High Accuracy</option>
-                        </select>
-                      </div>
-
-                      <div class="col-12">
-                        <div class="row g-2">
-                          <div class="col-12 col-md-4">
-                            <div class="form-check form-switch">
-                              <input class="form-check-input" type="checkbox" role="switch" id="aiOverlays" checked />
-                              <label class="form-check-label" for="aiOverlays">AI Overlays</label>
-                            </div>
-                          </div>
-                          <div class="col-12 col-md-4">
-                            <div class="form-check form-switch">
-                              <input class="form-check-input" type="checkbox" role="switch" id="poseEst" checked />
-                              <label class="form-check-label" for="poseEst">Pose Estimation</label>
-                            </div>
-                          </div>
-                          <div class="col-12 col-md-4">
-                            <div class="form-check form-switch">
-                              <input class="form-check-input" type="checkbox" role="switch" id="intentCls" checked />
-                              <label class="form-check-label" for="intentCls">Intent Classifier</label>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="col-12">
-                  <div class="panel-soft p-3">
-                    <div class="fw-semibold">Alerts & Escalation</div>
-                    <div class="small muted">Configure sensitivity and who gets notified.</div>
-
-                    <div class="row g-3 mt-1">
-                      <div class="col-12 col-md-6">
-                        <label class="form-label small muted mb-1">Fall Risk Sensitivity</label>
-                        <select class="form-select">
-                          <option>Low</option>
-                          <option selected>Medium</option>
-                          <option>High</option>
-                        </select>
-                      </div>
-                      <div class="col-12 col-md-6">
-                        <label class="form-label small muted mb-1">Auto Escalate After</label>
-                        <select class="form-select">
-                          <option>30 seconds</option>
-                          <option selected>60 seconds</option>
-                          <option>120 seconds</option>
-                        </select>
-                      </div>
-
-                      <div class="col-12 col-md-6">
-                        <div class="form-check form-switch">
-                          <input class="form-check-input" type="checkbox" role="switch" id="soundAlerts" checked />
-                          <label class="form-check-label" for="soundAlerts">Sound Alerts on Dashboard</label>
-                        </div>
-                      </div>
-                      <div class="col-12 col-md-6">
-                        <div class="form-check form-switch">
-                          <input class="form-check-input" type="checkbox" role="switch" id="nurseCall" disabled />
-                          <label class="form-check-label" for="nurseCall">Nurse Call Integration (Coming soon)</label>
-                        </div>
-                      </div>
-
-                      <div class="col-12">
-                        <label class="form-label small muted mb-1">Notify</label>
-                        <select class="form-select">
-                          <option selected>Critical only</option>
-                          <option>Critical + Warning</option>
-                          <option>All events (Verbose)</option>
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="col-12">
-                  <div class="panel-soft p-3">
-                    <div class="fw-semibold">System Preferences</div>
-                    <div class="small muted">General application preferences (not tied to multi-screen layout).</div>
-
-                    <div class="row g-3 mt-1">
-                      <div class="col-12 col-md-6">
-                        <label class="form-label small muted mb-1">Time Format</label>
-                        <select class="form-select">
-                          <option selected>24-hour</option>
-                          <option>12-hour</option>
-                        </select>
-                      </div>
-                      <div class="col-12 col-md-6">
-                        <label class="form-label small muted mb-1">Default Landing Page</label>
-                        <select class="form-select">
-                          <option selected>Dashboard</option>
-                          <option>Cameras</option>
-                          <option>Alerts</option>
-                        </select>
-                      </div>
-
-                      <div class="col-12 col-md-6">
-                        <div class="form-check form-switch mt-4">
-                          <input class="form-check-input" type="checkbox" role="switch" id="denseUi" />
-                          <label class="form-check-label" for="denseUi">Compact Layout</label>
-                        </div>
-                      </div>
-                      <div class="col-12 col-md-6">
-                        <div class="form-check form-switch mt-4">
-                          <input class="form-check-input" type="checkbox" role="switch" id="reduceMotion" />
-                          <label class="form-check-label" for="reduceMotion">Reduce Motion</label>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-              </div>
+        <form method="post" action="{% url 'settings' %}">
+          {% csrf_token %}
+          <input type="hidden" name="form_action" value="create_staff" />
+          {% if staff_form.non_field_errors %}
+            <ul class="errorlist">{% for e in staff_form.non_field_errors %}<li>{{ e }}</li>{% endfor %}</ul>
+          {% endif %}
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label class="form-label small muted">Username (for login)</label>
+              {{ staff_form.username }}
+              {{ staff_form.username.errors }}
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small muted">Password</label>
+              {{ staff_form.password1 }}
+              {{ staff_form.password1.errors }}
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small muted">Confirm password</label>
+              {{ staff_form.password2 }}
+              {{ staff_form.password2.errors }}
+            </div>
+            <div class="col-md-3">
+              <label class="form-label small muted">First name</label>
+              {{ staff_form.first_name }}
+            </div>
+            <div class="col-md-3">
+              <label class="form-label small muted">Last name</label>
+              {{ staff_form.last_name }}
+            </div>
+            <div class="col-md-3">
+              <label class="form-label small muted">Role</label>
+              {{ staff_form.role }}
+            </div>
+            <div class="col-md-3">
+              <label class="form-label small muted">Email</label>
+              {{ staff_form.email }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small muted">Building (same as monitoring above)</label>
+              {{ staff_form.assigned_building }}
+              {{ staff_form.assigned_building.errors }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small muted">Floor (same as monitoring above)</label>
+              {{ staff_form.assigned_floor }}
+              {{ staff_form.assigned_floor.errors }}
             </div>
           </div>
-        </div>
-      </main>
-    </div>
+          <button type="submit" class="btn btn-accent mt-3"><i class="fa-solid fa-user-plus me-1"></i>Create staff account</button>
+        </form>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+        {% if staff_accounts %}
+        <div class="mt-4">
+          <div class="small muted mb-2">Existing staff (last 20)</div>
+          <div class="table-responsive">
+            <table class="table table-sm table-dark table-borderless mb-0 small">
+              <thead><tr><th>Username</th><th>Name</th><th>Role</th><th>Building</th><th>Floor</th></tr></thead>
+              <tbody>
+                {% for s in staff_accounts %}
+                <tr>
+                  <td>{{ s.username }}</td>
+                  <td>{{ s.name }}</td>
+                  <td>{{ s.role }}</td>
+                  <td>{{ s.building }}</td>
+                  <td>{{ s.floor }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+
+      {% else %}
+      <div class="panel">
+        <div class="fw-semibold mb-2">Monitoring & staff management</div>
+        <p class="small muted mb-0">
+          Only <strong>Admin</strong> can change camera/video and create staff logins.
+          You are <strong>{{ staff_role }}</strong> at <strong>{{ assigned_building }}</strong>, floor <strong>{{ assigned_floor }}</strong>.
+          Alerts on Dashboard show only for your building + floor.
+        </p>
+      </div>
+      {% endif %}
+    </main>
 
     <script>
-      function pad2(n) {
-        return String(n).padStart(2, "0");
-      }
-
-      function updateClock() {
-        const now = new Date();
-        const hh = pad2(now.getHours());
-        const mm = pad2(now.getMinutes());
-        const ss = pad2(now.getSeconds());
+      function pad2(n) { return String(n).padStart(2, "0"); }
+      setInterval(() => {
+        const n = new Date();
         const el = document.getElementById("clock");
-        if (el) el.textContent = `${hh}:${mm}:${ss}`;
+        if (el) el.textContent = `${pad2(n.getHours())}:${pad2(n.getMinutes())}:${pad2(n.getSeconds())}`;
+      }, 1000);
+    </script>
+    {% if can_edit_system_settings %}
+    <script>
+      const monitorSource = document.getElementById("monitor_source");
+      const cameraIndex = document.getElementById("camera_index");
+      const videoPath = document.getElementById("video_path");
+      const reasoningToggle = document.getElementById("enable_ai_reasoning");
+      const reasoningLabel = document.querySelector('label[for="enable_ai_reasoning"]');
+
+      function syncFields() {
+        const video = monitorSource && monitorSource.value === "video";
+        if (cameraIndex) {
+          cameraIndex.readOnly = video;
+        }
+        if (videoPath) {
+          videoPath.readOnly = !video;
+        }
       }
 
-      updateClock();
-      setInterval(updateClock, 1000);
+      if (monitorSource) {
+        monitorSource.addEventListener("change", syncFields);
+        syncFields();
+      }
+
+      if (reasoningToggle && reasoningLabel) {
+        reasoningToggle.addEventListener("change", () => {
+          reasoningLabel.textContent = reasoningToggle.checked ? "ON" : "OFF";
+        });
+      }
     </script>
+    {% endif %}
   </body>
 </html>

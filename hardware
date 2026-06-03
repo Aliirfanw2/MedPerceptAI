@@ -1,0 +1,24 @@
+cpu:
+MONITOR_INPUT_SOURCE=camera
+MONITOR_CAMERA_INDEX=0
+MONITOR_VIDEO_PATH=C:\Users\THINK PAD\Desktop\MedPerceptAI\medPerceptai\media\test_video.mp4
+
+REASONING_MODEL_PATH=C:\Users\THINK PAD\Desktop\MedPerceptAI\medPerceptai\model_weights\llama-3.gguf
+ENABLE_REASONING=1
+LLAMA_N_GPU_LAYERS=0
+LLAMA_N_CTX=2048
+LLAMA_N_BATCH=512
+LLAMA_N_THREADS=4
+
+
+gpu:
+MONITOR_INPUT_SOURCE=camera
+MONITOR_CAMERA_INDEX=0
+MONITOR_VIDEO_PATH=C:\Users\THINK PAD\Desktop\MedPerceptAI\medPerceptai\media\test_video.mp4
+
+REASONING_MODEL_PATH=C:\Users\THINK PAD\Desktop\MedPerceptAI\medPerceptai\model_weights\llama-3.gguf
+ENABLE_REASONING=1
+LLAMA_N_GPU_LAYERS=-1
+LLAMA_N_CTX=2048
+LLAMA_N_BATCH=512
+LLAMA_N_THREADS=4

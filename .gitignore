@@ -26,3 +26,11 @@ Desktop.ini
 
 # VS Code
 .vscode/
+model_weights/
+
+# Secrets and local env
+.env
+medPerceptai/.env
+
+# Large bundled weights (use model_weights/ locally)
+*.pt

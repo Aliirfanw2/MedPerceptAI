@@ -182,7 +182,7 @@
         <a class="nav-link-dark" href="{% url 'live_monitor' %}">
           <i class="fa-solid fa-camera"></i>
           <span>Cameras</span>
-          <span class="ms-auto badge rounded-pill badge-soft">6</span>
+          <span class="ms-auto badge rounded-pill badge-soft">{{ layout_registered_cameras|default:0 }}</span>
         </a>
         <a class="nav-link-dark" href="{% url 'alerts' %}">
           <i class="fa-solid fa-triangle-exclamation"></i>
@@ -209,7 +209,7 @@
           </div>
           <div class="flex-grow-1">
             <div class="fw-semibold">{{ user.get_full_name|default:user.get_username|default:"Operator" }}</div>
-            <div class="small muted">Shift: Night • ICU</div>
+            <div class="small muted">{{ layout_shift_label|default:staff_role }}</div>
           </div>
         </div>
       </div>
@@ -263,39 +263,32 @@
                       <th>Updated</th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody id="historyTableBody">
+                    {% for row in history_rows %}
                     <tr>
-                      <td class="fw-semibold">Patient A</td>
-                      <td class="muted">ICU</td>
-                      <td class="muted">ICU-CAM-01</td>
-                      <td>Unassisted stand attempt</td>
-                      <td><span class="status crit"><i class="fa-solid fa-triangle-exclamation"></i>Critical</span></td>
-                      <td class="muted">2 min ago</td>
+                      <td class="fw-semibold">{{ row.patient_label }}</td>
+                      <td class="muted">{{ row.unit }}</td>
+                      <td class="muted">{{ row.camera_id }}</td>
+                      <td>{{ row.last_event }}</td>
+                      <td>
+                        <span class="status {{ row.risk_class }}">
+                          {% if row.risk_class == 'crit' %}
+                          <i class="fa-solid fa-triangle-exclamation"></i>
+                          {% elif row.risk_class == 'warn' %}
+                          <i class="fa-solid fa-circle-exclamation"></i>
+                          {% else %}
+                          <i class="fa-solid fa-circle-check"></i>
+                          {% endif %}
+                          {{ row.risk }}
+                        </span>
+                      </td>
+                      <td class="muted">{{ row.updated_label }}</td>
                     </tr>
+                    {% empty %}
                     <tr>
-                      <td class="fw-semibold">Patient B</td>
-                      <td class="muted">ICU</td>
-                      <td class="muted">ICU-CAM-02</td>
-                      <td>Line tug risk</td>
-                      <td><span class="status warn"><i class="fa-solid fa-circle-exclamation"></i>Warning</span></td>
-                      <td class="muted">8 min ago</td>
+                      <td colspan="6" class="muted text-center py-4">No patient events yet. Open the Dashboard and start the live stream.</td>
                     </tr>
-                    <tr>
-                      <td class="fw-semibold">Patient C</td>
-                      <td class="muted">Ward</td>
-                      <td class="muted">Ward-CAM-03</td>
-                      <td>Edge-of-bed posture</td>
-                      <td><span class="status warn"><i class="fa-solid fa-circle-exclamation"></i>Warning</span></td>
-                      <td class="muted">15 min ago</td>
-                    </tr>
-                    <tr>
-                      <td class="fw-semibold">Patient D</td>
-                      <td class="muted">ICU</td>
-                      <td class="muted">ICU-CAM-05</td>
-                      <td>Stable monitoring</td>
-                      <td><span class="status ok"><i class="fa-solid fa-circle-check"></i>OK</span></td>
-                      <td class="muted">22 min ago</td>
-                    </tr>
+                    {% endfor %}
                   </tbody>
                 </table>
               </div>
@@ -322,6 +315,54 @@
 
       updateClock();
       setInterval(updateClock, 1000);
+
+      const historyBody = document.getElementById("historyTableBody");
+
+      function renderHistory(rows) {
+        if (!historyBody) return;
+        if (!Array.isArray(rows) || rows.length === 0) {
+          historyBody.innerHTML =
+            '<tr><td colspan="6" class="muted text-center py-4">No patient events yet. Open the Dashboard and start the live stream.</td></tr>';
+          return;
+        }
+        historyBody.innerHTML = rows
+          .map((row) => {
+            const icon =
+              row.risk_class === "crit"
+                ? '<i class="fa-solid fa-triangle-exclamation"></i>'
+                : row.risk_class === "warn"
+                  ? '<i class="fa-solid fa-circle-exclamation"></i>'
+                  : '<i class="fa-solid fa-circle-check"></i>';
+            return `
+            <tr>
+              <td class="fw-semibold">${row.patient_label || "Patient"}</td>
+              <td class="muted">${row.unit || "--"}</td>
+              <td class="muted">${row.camera_id || "--"}</td>
+              <td>${row.last_event || "--"}</td>
+              <td><span class="status ${row.risk_class || "ok"}">${icon} ${row.risk || "OK"}</span></td>
+              <td class="muted">${row.updated_label || "--"}</td>
+            </tr>`;
+          })
+          .join("");
+      }
+
+      async function syncHistory() {
+        try {
+          const response = await fetch("{% url 'get_latest_alert' %}", {
+            headers: { Accept: "application/json" },
+            cache: "no-store",
+            credentials: "same-origin",
+          });
+          if (!response.ok) return;
+          const data = await response.json();
+          renderHistory(data.patient_history || []);
+        } catch (error) {
+          console.warn("Patient history sync failed", error);
+        }
+      }
+
+      syncHistory();
+      setInterval(syncHistory, 2000);
     </script>
   </body>
 </html>

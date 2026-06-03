@@ -17,6 +17,16 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
+# Load environment variables from BASE_DIR/.env if present.
+# This keeps local development configuration out of source control.
+try:
+    from dotenv import load_dotenv  # type: ignore
+
+    load_dotenv(BASE_DIR / ".env")
+except Exception:
+    pass
+
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
@@ -40,6 +50,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'accounts',
+    'monitor.apps.MonitorConfig',
 ]
 
 MIDDLEWARE = [
@@ -65,12 +76,15 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'accounts.context_processors.layout_context',
             ],
         },
     },
 ]
 
 WSGI_APPLICATION = 'medPerceptai.wsgi.application'
+
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
 # Database
@@ -120,7 +134,7 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
-# Media files (uploads / demo videos)
+# Media files (uploads)
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
