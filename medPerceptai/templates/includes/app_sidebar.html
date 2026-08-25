@@ -1,0 +1,64 @@
+{% load static %}
+<aside class="sidebar d-flex flex-column p-3 p-lg-4">
+  <div class="brand-lockup">
+    <div class="brand-icon" aria-hidden="true">
+      <i class="fa-solid fa-heart-pulse"></i>
+    </div>
+    <div>
+      <div class="brand-title">MedPerceptAI</div>
+      <div class="brand-subtitle">Patient intent monitoring</div>
+    </div>
+  </div>
+
+  <div class="nav-section-label">Main</div>
+  <div class="panel-soft p-2 mb-3">
+    <a class="nav-link-dark {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}" href="{% url 'dashboard' %}">
+      <i class="fa-solid fa-gauge-high"></i>
+      <span>Dashboard</span>
+    </a>
+    <a class="nav-link-dark {% if request.resolver_match.url_name == 'live_monitor' %}active{% endif %}" href="{% url 'live_monitor' %}">
+      <i class="fa-solid fa-camera"></i>
+      <span>Cameras</span>
+      <span class="ms-auto badge rounded-pill badge-soft" id="sidebarCameraBadge">{{ layout_registered_cameras|default:0 }}</span>
+    </a>
+    <a class="nav-link-dark {% if request.resolver_match.url_name == 'alerts' %}active{% endif %}" href="{% url 'alerts' %}">
+      <i class="fa-solid fa-triangle-exclamation"></i>
+      <span>Alerts</span>
+    </a>
+    <a class="nav-link-dark {% if request.resolver_match.url_name == 'patient_history' %}active{% endif %}" href="{% url 'patient_history' %}">
+      <i class="fa-solid fa-notes-medical"></i>
+      <span>Patient History</span>
+    </a>
+  </div>
+
+  <div class="nav-section-label">System</div>
+  <div class="panel-soft p-2 mb-3">
+    <a class="nav-link-dark {% if request.resolver_match.url_name == 'settings' %}active{% endif %}" href="{% url 'settings' %}">
+      <i class="fa-solid fa-gear"></i>
+      <span>Settings</span>
+    </a>
+    <a class="nav-link-dark {% if request.resolver_match.url_name == 'profile' %}active{% endif %}" href="{% url 'profile' %}">
+      <i class="fa-solid fa-user"></i>
+      <span>Profile</span>
+    </a>
+  </div>
+
+  <div class="mt-auto">
+    <a href="{% url 'profile' %}" class="sidebar-user-card text-decoration-none text-reset">
+      <div class="panel p-3 d-flex align-items-center gap-3 mb-0">
+        <div
+          class="rounded-circle d-inline-flex align-items-center justify-content-center flex-shrink-0"
+          style="width: 44px; height: 44px; background: var(--mp-primary-muted); border: 1px solid var(--mp-border-strong);"
+          aria-hidden="true"
+        >
+          <i class="fa-solid fa-user-doctor" style="color: var(--mp-primary)"></i>
+        </div>
+        <div class="flex-grow-1 min-width-0">
+          <div class="fw-semibold text-truncate">{{ user.get_full_name|default:user.get_username|default:"Operator" }}</div>
+          <div class="small muted text-truncate">{{ layout_shift_label|default:staff_role|default:"Staff" }}</div>
+        </div>
+        <i class="fa-solid fa-chevron-right small muted"></i>
+      </div>
+    </a>
+  </div>
+</aside>

@@ -10,36 +10,80 @@
       background-size: cover;
       background-position: center;
       background-repeat: no-repeat;
-      overflow-x: hidden;
     }
     body::before {
       content: "";
       position: fixed;
       inset: 0;
-      background: rgba(248, 249, 250, 0.26);
+      background: linear-gradient(135deg, rgba(7, 11, 18, 0.55), rgba(15, 118, 110, 0.2));
       z-index: 0;
     }
     main, footer { position: relative; z-index: 1; }
+    .home-hero {
+      max-width: 920px;
+      background: rgba(20, 31, 46, 0.82);
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      border-radius: 24px;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 28px 60px rgba(0, 0, 0, 0.35);
+      color: #f1f5f9;
+    }
+    .home-hero h1 {
+      background: linear-gradient(135deg, #99f6e4, #38bdf8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .btn-home {
+      background: linear-gradient(135deg, #14b8a6, #0f766e);
+      border: none;
+      color: #ecfdf5;
+      font-weight: 600;
+      padding: 0.75rem 2rem;
+      border-radius: 12px;
+    }
+    .btn-home:hover {
+      color: #fff;
+      box-shadow: 0 12px 28px rgba(20, 184, 166, 0.35);
+    }
+    @media (max-width: 575.98px) {
+      .home-hero {
+        padding-left: 1.25rem !important;
+        padding-right: 1.25rem !important;
+        border-radius: 16px;
+      }
+      .home-hero h1 {
+        font-size: 1.85rem;
+      }
+      .home-hero .lead {
+        font-size: 1rem;
+      }
+      .home-hero .d-flex.gap-3 {
+        flex-direction: column;
+        width: 100%;
+      }
+      .home-hero .btn {
+        width: 100%;
+      }
+    }
   </style>
 {% endblock %}
 
 {% block content %}
-  <div class="container py-4">
-    <section
-      class="py-4 py-md-5 border rounded-3 mx-auto"
-      style="max-width: 980px; background: rgba(255,255,255,0.62); backdrop-filter: blur(10px);"
-    >
-      <div class="px-3 px-md-4 text-center">
-        <h1 class="display-5 fw-bold text-primary mb-3">MedPerceptAI</h1>
-        <p class="lead text-muted mb-4">
-          AI-Assisted Vision &amp; Intent Monitoring for Patient Safety
-        </p>
-
-        <div class="d-flex justify-content-center gap-3">
-          <a href="{% url 'login' %}" class="btn btn-primary btn-lg px-4">
-            Proceed to Login
-          </a>
-        </div>
+  <div class="container py-5">
+    <section class="home-hero py-5 px-4 mx-auto text-center">
+      <div class="mb-3">
+        <i class="fa-solid fa-heart-pulse fa-2x" style="color: #2dd4bf"></i>
+      </div>
+      <h1 class="display-5 fw-bold mb-3">MedPerceptAI</h1>
+      <p class="lead mb-4" style="color: #94a3b8">
+        AI-assisted vision and intent monitoring for patient safety
+      </p>
+      <div class="d-flex flex-wrap justify-content-center gap-3">
+        <a href="{% url 'login' %}" class="btn btn-home btn-lg">Proceed to login</a>
+        {% if user.is_authenticated %}
+          <a href="{% url 'dashboard' %}" class="btn btn-outline-light btn-lg rounded-3">Open dashboard</a>
+        {% endif %}
       </div>
     </section>
   </div>

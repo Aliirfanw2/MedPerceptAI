@@ -1,0 +1,123 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>MedPerceptAI — Profile</title>
+    {% include "includes/app_head.html" %}
+  </head>
+
+  <body class="app-body">
+    {% include "includes/app_sidebar.html" %}
+
+    <main class="content profile-page px-3 px-lg-4 py-4">
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4 page-title-row">
+        <div class="min-width-0">
+          <h1 class="h4 mb-1">Profile</h1>
+          <p class="small muted mb-0 text-truncate">
+            {{ staff_role }} · {{ assigned_building }}, Floor {{ assigned_floor }}
+          </p>
+        </div>
+        <span id="clock" class="muted small flex-shrink-0">--:--:--</span>
+      </div>
+
+      <div class="row g-3 g-lg-4">
+        <div class="col-lg-8">
+          <div class="panel mb-3">
+            <div class="profile-hero d-flex flex-wrap align-items-center gap-3 mb-3 pb-3 border-bottom border-secondary border-opacity-25">
+              <div class="profile-avatar" aria-hidden="true">
+                <i class="fa-solid fa-user-doctor"></i>
+              </div>
+              <div class="min-width-0">
+                <h2 class="h5 mb-1 text-truncate">{{ user.get_full_name|default:user.username }}</h2>
+                <p class="small muted mb-2">@{{ user.username }}</p>
+                <span class="badge badge-role rounded-pill">{{ staff_role }}</span>
+              </div>
+            </div>
+
+            <div class="profile-info-grid">
+              <div class="profile-info-item">
+                <span class="muted">Email</span>
+                <strong>{% if user_email %}{{ user_email }}{% else %}—{% endif %}</strong>
+              </div>
+              <div class="profile-info-item">
+                <span class="muted">Building</span>
+                <strong>{{ assigned_building }}</strong>
+              </div>
+              <div class="profile-info-item">
+                <span class="muted">Floor</span>
+                <strong>{{ assigned_floor }}</strong>
+              </div>
+              <div class="profile-info-item">
+                <span class="muted">Member since</span>
+                <strong>{% if date_joined %}{{ date_joined|date:"M j, Y" }}{% else %}—{% endif %}</strong>
+              </div>
+              <div class="profile-info-item">
+                <span class="muted">Last login</span>
+                <strong>{% if last_login %}{{ last_login|date:"M j, Y g:i A" }}{% else %}—{% endif %}</strong>
+              </div>
+              <div class="profile-info-item">
+                <span class="muted">Monitoring unit</span>
+                <strong>{{ monitoring_display }}</strong>
+              </div>
+            </div>
+
+            {% if not has_staff_profile %}
+            <p class="small text-warning mb-0 mt-3">
+              <i class="fa-solid fa-circle-info me-1"></i>
+              {% if can_edit_system_settings %}
+                Admin account — add a staff profile in Django Admin for unit-scoped alerts.
+              {% else %}
+                No staff profile linked. Contact your admin for building/floor assignment.
+              {% endif %}
+            </p>
+            {% endif %}
+          </div>
+
+          {% if can_edit_system_settings %}
+          <a href="{% url 'settings' %}" class="btn btn-sm btn-accent">
+            <i class="fa-solid fa-gear me-1"></i>Monitoring settings
+          </a>
+          {% endif %}
+        </div>
+
+        <div class="col-lg-4">
+          <div class="panel mb-3">
+            <h2 class="h6 fw-semibold mb-3">Quick links</h2>
+            <div class="d-grid gap-2">
+              <a href="{% url 'dashboard' %}" class="btn btn-accent btn-sm">
+                <i class="fa-solid fa-gauge-high me-1"></i>Dashboard
+              </a>
+              <a href="{% url 'live_monitor' %}" class="btn btn-ghost btn-sm">
+                <i class="fa-solid fa-camera me-1"></i>Cameras
+              </a>
+              <a href="{% url 'alerts' %}" class="btn btn-ghost btn-sm">
+                <i class="fa-solid fa-bell me-1"></i>Alerts
+              </a>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h2 class="h6 fw-semibold mb-3">Sign out</h2>
+            <form method="post" action="{% url 'logout' %}">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-logout w-100">
+                <i class="fa-solid fa-right-from-bracket me-1"></i>Log out
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <script>
+      function pad2(n) { return String(n).padStart(2, "0"); }
+      function updateClock() {
+        const now = new Date();
+        const el = document.getElementById("clock");
+        if (el) el.textContent = `${pad2(now.getHours())}:${pad2(now.getMinutes())}:${pad2(now.getSeconds())}`;
+      }
+      updateClock();
+      setInterval(updateClock, 1000);
+    </script>
+  </body>
+</html>

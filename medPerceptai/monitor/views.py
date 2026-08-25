@@ -5,9 +5,8 @@ import os
 import threading
 import time
 from collections import deque
-from queue import Empty, Queue
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional, Tuple
+from typing import Any, Deque, Dict, Iterator, List, Optional, Tuple
 
 import cv2
 import numpy as np
@@ -17,19 +16,44 @@ from django.db import DatabaseError
 from django.http import JsonResponse
 from django.http import StreamingHttpResponse
 
+from monitor.event_store import (
+    count_active_alerts,
+    fetch_patient_history_rows,
+    fetch_recent_alerts,
+    fetch_recent_events,
+    format_relative_time,
+    persist_monitoring_event,
+)
 from monitor.ml_pipeline import DEFAULT_FALLBACK_VIDEO, PatientIntentPipeline
 from monitor.models import Camera
+from monitor.runtime.orchestrator import StreamOrchestrator
+from monitor.runtime.state_manager import StateManager
+from monitor.runtime.types import ReasoningResult
+from monitor.presentation_config import (
+    CAPTURE_MAX_FPS,
+    FRAME_SLEEP_SECONDS,
+    INFERENCE_EVERY_N_FRAMES,
+    INFERENCE_EVERY_N_FRAMES_VIDEO,
+    LLM_LAG_STALE_FRAMES,
+    RUNTIME_QUEUE_SIZE,
+    reasoning_enabled,
+)
 
 logger = logging.getLogger(__name__)
 
 _PIPELINE: Optional[PatientIntentPipeline] = None
 _PIPELINE_INIT_LOCK = threading.Lock()
-PIPELINE_LOCK = threading.Lock()
 STATE_LOCK = threading.Lock()
 latest_inference_state: Dict[str, Any] = {
-    "intent": "System warming up",
+    "intent": "Waiting for live stream",
     "alert": False,
     "bbox": None,
+    "frame_id": None,
+    "capture_frame_id": None,
+    "overlay_frame_id": None,
+    "overlay_stale": True,
+    "capture_active": False,
+    "capture_exit_reason": None,
     "updated_at": None,
     "source": None,
     "status": "idle",
@@ -43,26 +67,34 @@ latest_inference_state: Dict[str, Any] = {
     "frame_width": None,
     "frame_height": None,
     "stream_fps": 0,
+    "confidence_scores": {},
+    "monitor_status": "idle",
+    "role_hint": "unknown",
+    "risk_score": None,
+    "risk_level": "not provided",
+    "reasoning_trace": [],
+    "reasoning_history": [],
+    "safety_label": "not provided",
+    "alert_type": "not provided",
+    "reason": None,
+    "summary": None,
+    "patient_status": "not provided",
+    "staff_presence": "not provided",
+    "decision_source": "fallback",
+    "display_sections": {},
 }
 
 MJPEG_BOUNDARY = b"--frame\r\nContent-Type: image/jpeg\r\n\r\n"
 MJPEG_SUFFIX = b"\r\n"
-FRAME_SLEEP_SECONDS = 0.03
-EVENT_LOG: deque = deque(maxlen=120)
-EVENT_LOG_LOCK = threading.Lock()
-
-DISPLAY_FRAME_LOCK = threading.Lock()
-_LATEST_DISPLAY_CHUNK: Optional[bytes] = None
-_CAPTURE_STOP = threading.Event()
-_CAPTURE_THREAD: Optional[threading.Thread] = None
+_RUNTIME_STATE = StateManager()
+_ORCHESTRATOR: Optional[StreamOrchestrator] = None
+_ORCHESTRATOR_LOCK = threading.RLock()
 _CAPTURE_CONFIG_SIG: Optional[str] = None
-_INFERENCE_STOP = threading.Event()
-_INFERENCE_THREAD: Optional[threading.Thread] = None
-_INFERENCE_QUEUE: "Queue[Tuple[np.ndarray, int, Dict[str, Any]]]" = Queue(maxsize=1)
-_WORKER_CACHED_INFERENCE: Optional[Dict[str, Any]] = None
-_WORKER_CACHED_LOCK = threading.Lock()
 _STREAM_CLIENTS = 0
 _STREAM_CLIENTS_LOCK = threading.Lock()
+_REASONING_HISTORY: Deque[Dict[str, Any]] = deque(maxlen=40)
+_REASONING_HISTORY_LOCK = threading.Lock()
+
 
 
 def _safe_int(value: Any, fallback: int = 0) -> int:
@@ -71,8 +103,6 @@ def _safe_int(value: Any, fallback: int = 0) -> int:
     except Exception:
         return fallback
 
-
-INFERENCE_EVERY_N_FRAMES = max(1, _safe_int(os.environ.get("INFERENCE_EVERY_N_FRAMES", "2"), 2))
 
 
 def _normalize_source(source: Any) -> str:
@@ -104,20 +134,23 @@ def _get_pipeline() -> PatientIntentPipeline:
 
 
 def _ai_reasoning_enabled(session) -> bool:
+    """Rule-based by default; Llama only when ENABLE_REASONING=1 (session may opt out)."""
+    if not reasoning_enabled():
+        return False
     if session is not None and "enable_ai_reasoning" in session:
         return bool(session.get("enable_ai_reasoning"))
-    return os.environ.get("ENABLE_REASONING", "0").strip().lower() not in {"0", "false", "no", "off"}
+    return True
 
 
 def _safe_process_frame(frame: np.ndarray, config: Dict[str, Any]) -> Dict[str, Any]:
+    """Legacy single-threaded path (tests/admin); runtime uses parallel workers instead."""
     use_reasoning = bool(config.get("enable_ai_reasoning", config.get("use_reasoning", False)))
     try:
-        with PIPELINE_LOCK:
-            return _get_pipeline().process_frame(
-                frame,
-                stream_config=config,
-                use_reasoning=use_reasoning,
-            )
+        return _get_pipeline().process_frame(
+            frame,
+            stream_config=config,
+            use_reasoning=use_reasoning,
+        )
     except Exception as exc:
         logger.exception("Frame processing failed; returning passthrough frame: %s", exc)
         output = frame.copy()
@@ -324,32 +357,35 @@ def _build_status_frame(message: str, config: Optional[Dict[str, Any]] = None) -
 
 
 def _apply_cctv_overlay(frame: np.ndarray, config: Dict[str, Any], offline: bool = False) -> np.ndarray:
+    """Light stream chrome: LIVE badge + detection timestamp (no large header blocks)."""
+    _ = config
     height, width = frame.shape[:2]
-    timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
-    floor_number = config.get("floor_number", "--")
-    room_number = config.get("room_number", "--")
-    camera_id = config.get("camera_id", "--")
-    building = config.get("building", "--")
-    source_label = config.get("source_label", "Live Camera Feed")
-    input_detail = config.get("input_detail", "")
-
-    cv2.rectangle(frame, (0, 0), (width - 1, height - 1), (59, 130, 246), 2)
-
-    header = f"MedPerceptAI | {building}"
-    location = f"Floor {floor_number} | Room {room_number} | {camera_id}"
-    source_line = f"{source_label} | {input_detail}"
     status = "OFFLINE" if offline else "LIVE"
-
-    lines = [header, location, source_line, timestamp, status]
-    y = 34
-    for line in lines:
-        cv2.putText(frame, line, (16, y), cv2.FONT_HERSHEY_SIMPLEX, 0.62, (0, 0, 0), 4, cv2.LINE_AA)
-        cv2.putText(frame, line, (16, y), cv2.FONT_HERSHEY_SIMPLEX, 0.62, (229, 231, 235), 2, cv2.LINE_AA)
-        y += 30
-
-    badge_color = (0, 0, 255) if offline else (0, 180, 0)
-    cv2.rectangle(frame, (width - 150, 12), (width - 12, 48), badge_color, -1)
-    cv2.putText(frame, status, (width - 132, 38), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2, cv2.LINE_AA)
+    badge_color = (0, 0, 200) if offline else (0, 140, 0)
+    x2 = width - 8
+    x1 = max(8, x2 - 64)
+    cv2.rectangle(frame, (x1, 8), (x2, 26), badge_color, -1)
+    cv2.putText(
+        frame,
+        status,
+        (x1 + 6, 21),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.45,
+        (255, 255, 255),
+        1,
+        cv2.LINE_AA,
+    )
+    timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+    cv2.putText(
+        frame,
+        timestamp,
+        (8, height - 10),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.48,
+        (210, 220, 230),
+        1,
+        cv2.LINE_AA,
+    )
     return frame
 
 
@@ -376,6 +412,247 @@ def _snapshot_latest_inference_state() -> Dict[str, Any]:
         return dict(latest_inference_state)
 
 
+def _structured_from_state(state: Dict[str, Any]) -> Dict[str, Any]:
+    scores = state.get("confidence_scores") or {}
+    return dict(scores.get("structured_reasoning") or {})
+
+
+def _apply_llm_fields(state: Dict[str, Any]) -> Dict[str, Any]:
+    """Expose flat LLM decision fields on API state (no heuristic defaults)."""
+    from monitor.runtime.display_fields import apply_stale_llm_mask_to_state
+
+    out = apply_stale_llm_mask_to_state(dict(state))
+    scores = out.get("confidence_scores") or {}
+    reasoning_stale = bool(out.get("reasoning_stale") or scores.get("reasoning_stale"))
+    stale = bool(out.get("overlay_stale")) or not bool(out.get("capture_active")) or reasoning_stale
+    if stale:
+        out["alert"] = False
+        return out
+
+    structured = _structured_from_state(state)
+    for key in (
+        "patient_status",
+        "staff_presence",
+        "alert_type",
+        "reason",
+        "summary",
+        "safety_label",
+        "risk_level",
+        "decision_source",
+    ):
+        val = structured.get(key) if key in structured else out.get(key)
+        if val is not None and (not isinstance(val, str) or val.strip()):
+            out[key] = val
+    risk_score = structured.get("risk_score")
+    if risk_score is not None:
+        try:
+            out["risk_score"] = float(risk_score)
+        except (TypeError, ValueError):
+            out["risk_score"] = None
+    elif out.get("risk_score") is None:
+        out["risk_score"] = None
+    label = str(out.get("safety_label") or "not provided").upper()
+    out["alert"] = label == "ALERT"
+    return out
+
+
+def _apply_capture_snapshot(state: Dict[str, Any]) -> Dict[str, Any]:
+    """Apply authoritative capture/stale fields from StateManager (never stale exit_reason when live)."""
+    from monitor.runtime.display_fields import patch_display_sections_capture, reconcile_llm_display
+
+    out = dict(state)
+    overlay_fid = int(out.get("overlay_frame_id") or out.get("frame_id") or 0)
+    snap = _RUNTIME_STATE.live_snapshot(overlay_fid)
+
+    out["capture_active"] = snap["capture_active"]
+    out["capture_frame_id"] = snap["capture_frame_id"] or out.get("capture_frame_id")
+    out["overlay_stale"] = snap["overlay_stale"]
+    out["capture_exit_reason"] = snap["capture_exit_reason"]
+
+    scores = dict(out.get("confidence_scores") or {})
+    structured = dict(scores.get("structured_reasoning") or {})
+    decision_scene = dict(scores.get("scene") or {})
+    decision_fid_for_scene = int(out.get("llm_output_frame_id") or out.get("frame_id") or 0)
+    live_scene = _RUNTIME_STATE.get_perception_scene(decision_fid_for_scene)
+    scores = reconcile_llm_display(
+        scores,
+        structured=structured,
+        decision_scene=decision_scene,
+        snap=snap,
+        intent=str(out.get("intent") or ""),
+        decision_frame_id=int(out.get("llm_output_frame_id") or out.get("frame_id") or 0),
+        live_scene=live_scene,
+    )
+    out["reasoning_stale"] = bool(scores.get("reasoning_stale"))
+    out["llm_output_frame_id"] = scores.get("llm_output_frame_id")
+    out["llm_scene_frame_id"] = scores.get("llm_scene_frame_id")
+    out["llm_lag_frames"] = scores.get("llm_lag_frames")
+    out["reasoning_consistency_warning"] = bool(scores.get("reasoning_consistency_warning"))
+    out["warning_text"] = scores.get("warning_text") or ""
+
+    display_sections = dict(scores.get("display_sections") or out.get("display_sections") or {})
+    display_sections = patch_display_sections_capture(
+        display_sections,
+        capture_active=bool(snap["capture_active"]),
+        overlay_stale=bool(snap["overlay_stale"]),
+        capture_exit_reason=snap["capture_exit_reason"],
+    )
+    out["display_sections"] = display_sections
+    scores["display_sections"] = display_sections
+    out["confidence_scores"] = scores
+
+    if snap["overlay_stale"]:
+        reason = snap["capture_exit_reason"] or "no live stream"
+        out["alert"] = False
+        out["safety_label"] = "STALE"
+        if reason and "stop requested" in str(reason).lower():
+            out["intent"] = "No live stream — open the camera feed to resume monitoring"
+        else:
+            out["intent"] = f"Capture stopped ({reason})"
+        out["status"] = "stale"
+        scores["safety_label"] = "STALE"
+    elif snap["capture_active"]:
+        if out.get("status") in (None, "idle", "stale", "streaming", "ok"):
+            out["status"] = "live"
+        stale_intent = str(out.get("intent") or "")
+        if not out.get("reasoning_stale") and (
+            stale_intent.startswith("Capture stopped") or stale_intent.startswith("No live stream")
+        ):
+            structured = dict(scores.get("structured_reasoning") or {})
+            out["intent"] = (
+                structured.get("summary")
+                or structured.get("reason")
+                or "Live stream active — awaiting LLM decision"
+            )
+            if structured.get("safety_label"):
+                out["safety_label"] = structured.get("safety_label")
+
+    return _apply_llm_fields(out)
+
+
+def _apply_capture_freshness(state: Dict[str, Any]) -> Dict[str, Any]:
+    """Reconcile API state with live capture status so stale alerts are not shown as live."""
+    return _apply_capture_snapshot(state)
+
+
+def _on_capture_started(source_name: str, config: Dict[str, Any]) -> None:
+    """Clear previous-session stale fields when a new capture session begins."""
+    from monitor.runtime.fusion import reset_pose_hold, reset_primary_role_stable
+
+    reset_primary_role_stable()
+    reset_pose_hold()
+    try:
+        _get_pipeline().reset_capture_state()
+    except Exception:
+        pass
+    logger.info("[runtime] Capture session started source=%s", source_name)
+    _update_latest_inference_state(
+        capture_active=True,
+        overlay_stale=False,
+        capture_exit_reason=None,
+        status="live",
+        source=source_name,
+        intent="Live stream active",
+        alert=False,
+        safety_label="not provided",
+        decision_source="fallback",
+        building=config.get("building"),
+        floor=config.get("floor_number"),
+        room_number=config.get("room_number"),
+        camera_id=config.get("camera_id"),
+        connected_cameras=1,
+        error=None,
+        display_sections={},
+        confidence_scores={},
+        updated_at=time.time(),
+    )
+
+
+def _on_capture_ended(reason: str) -> None:
+    logger.warning("[runtime] Capture ended — marking API state stale reason=%s", reason)
+    _update_latest_inference_state(
+        capture_active=False,
+        overlay_stale=True,
+        capture_exit_reason=reason,
+        alert=False,
+        safety_label="STALE",
+        intent=f"Capture stopped — stale frame ({reason})",
+        status="stale",
+    )
+
+
+def _append_reasoning_history(result: ReasoningResult, *, source: str, camera_id: str) -> None:
+    scores = result.confidence_scores or {}
+    entry = {
+        "frame_id": result.frame_id,
+        "timestamp": time.time(),
+        "intent": result.intent,
+        "risk_score": result.risk_score if result.risk_score is not None else scores.get("risk_score"),
+        "risk_level": result.risk_level or scores.get("risk_level") or "not provided",
+        "alert": bool(result.alert_triggered),
+        "reasoning_mode": scores.get("reasoning_mode"),
+        "object_pct": scores.get("object_pct"),
+        "role_pct": scores.get("role_pct"),
+        "pose_pct": scores.get("pose_pct"),
+        "reasoning_pct": scores.get("reasoning_pct"),
+        "reasoning_trace": list(result.reasoning_trace or scores.get("reasoning_trace") or []),
+        "role_hint": result.role_hint,
+        "source": source,
+        "camera_id": camera_id,
+        "latency_ms": result.latency_ms,
+    }
+    with _REASONING_HISTORY_LOCK:
+        _REASONING_HISTORY.appendleft(entry)
+
+
+def _snapshot_reasoning_history(limit: int = 12) -> List[Dict[str, Any]]:
+    with _REASONING_HISTORY_LOCK:
+        return list(_REASONING_HISTORY)[:limit]
+
+
+def _build_live_log_feed(
+    db_logs: List[Dict[str, Any]],
+    memory_logs: List[Dict[str, Any]],
+    limit: int = 35,
+) -> List[Dict[str, Any]]:
+    """Merge in-memory reasoning steps with DB events for the live terminal (newest first)."""
+    merged: List[Dict[str, Any]] = []
+    seen: set[str] = set()
+
+    for entry in memory_logs:
+        key = f"mem:{entry.get('frame_id')}:{entry.get('timestamp')}"
+        if key in seen:
+            continue
+        seen.add(key)
+        merged.append(
+            {
+                "id": key,
+                "ts": entry.get("timestamp"),
+                "event": "reasoning",
+                "intent": entry.get("intent"),
+                "alert": entry.get("alert"),
+                "camera_id": entry.get("camera_id"),
+                "source": entry.get("source"),
+                "frame_id": entry.get("frame_id"),
+                "latency_ms": entry.get("latency_ms"),
+                "risk_score": entry.get("risk_score"),
+                "risk_level": entry.get("risk_level"),
+                "reasoning_mode": entry.get("reasoning_mode"),
+                "role_hint": entry.get("role_hint"),
+            }
+        )
+
+    for entry in db_logs:
+        key = f"db:{entry.get('id')}:{entry.get('frame_id')}:{entry.get('ts')}"
+        if key in seen:
+            continue
+        seen.add(key)
+        merged.append(entry)
+
+    merged.sort(key=lambda row: float(row.get("ts") or 0.0), reverse=True)
+    return merged[:limit]
+
+
 def _append_event_log(
     *,
     intent: str,
@@ -387,96 +664,57 @@ def _append_event_log(
     room_number: str,
     bbox: Optional[Dict[str, Any]],
     latency_ms: Optional[int],
+    frame_id: Optional[int] = None,
+    role_hint: str = "",
+    safety_label: Optional[str] = None,
+    reasoning_stale: bool = False,
 ) -> None:
-    entry = {
-        "ts": time.time(),
-        "intent": intent,
-        "alert": alert,
-        "camera_id": camera_id,
-        "source": source,
-        "building": building,
-        "floor": floor,
-        "room_number": room_number,
-        "bbox": bbox,
-        "latency_ms": latency_ms,
-        "event": "alert_emitted" if alert else "inference_update",
-    }
-    with EVENT_LOG_LOCK:
-        if EVENT_LOG and not alert:
-            last = EVENT_LOG[0]
-            if (
-                last.get("intent") == intent
-                and last.get("camera_id") == camera_id
-                and (time.time() - float(last.get("ts") or 0)) < 0.8
-            ):
-                last.update(entry)
-                return
-        EVENT_LOG.appendleft(entry)
+    llm_alert = str(safety_label or "").strip().upper() == "ALERT"
+    if reasoning_stale and llm_alert:
+        return
+    persist_monitoring_event(
+        intent=intent,
+        alert=llm_alert and alert,
+        safety_label=safety_label,
+        camera_id=camera_id,
+        source=source,
+        building=building,
+        floor=floor,
+        room_number=room_number,
+        bbox=bbox,
+        latency_ms=latency_ms,
+        frame_id=frame_id,
+        role_hint=role_hint,
+    )
 
 
 def get_recent_event_logs(limit: int = 40, user: Optional[User] = None) -> List[Dict[str, Any]]:
-    with EVENT_LOG_LOCK:
-        events = list(EVENT_LOG)
-    if user is not None:
-        from accounts.permissions import filter_events_for_user
-
-        events = filter_events_for_user(user, events)
-    return events[:limit]
+    return fetch_recent_events(limit, user=user)
 
 
-def get_recent_alerts(limit: int = 10, user: Optional[User] = None) -> List[Dict[str, Any]]:
-    alerts: List[Dict[str, Any]] = []
-    for event in get_recent_event_logs(80, user=user):
-        intent_text = str(event.get("intent") or "Alert detected")
-        lowered = intent_text.lower()
-        is_critical = bool(event.get("alert"))
-        is_warning = any(token in lowered for token in ("fall", "stand", "distress", "agitation", "attempting"))
-        if not is_critical and not is_warning:
-            continue
-        alerts.append(
-            {
-                "intent": intent_text,
-                "camera_id": event.get("camera_id", "--"),
-                "room_number": event.get("room_number", "--"),
-                "floor": event.get("floor", "--"),
-                "alert": is_critical,
-                "updated_label": _format_relative_time(event.get("ts")),
-                "severity": "Critical" if is_critical else "Warning",
-                "severity_class": "badge-critical" if is_critical else "badge-warning",
-            }
-        )
-        if len(alerts) >= limit:
-            break
-    return alerts
+def get_recent_alerts(
+    limit: int = 10,
+    user: Optional[User] = None,
+    *,
+    current_safety_label: Optional[str] = None,
+    current_capture_active: bool = True,
+    current_reasoning_stale: bool = False,
+) -> List[Dict[str, Any]]:
+    return fetch_recent_alerts(
+        limit,
+        user=user,
+        current_safety_label=current_safety_label,
+        current_capture_active=current_capture_active,
+        current_reasoning_stale=current_reasoning_stale,
+    )
 
 
 def get_patient_history_rows(limit: int = 25, user: Optional[User] = None) -> List[Dict[str, Any]]:
-    rows: List[Dict[str, Any]] = []
-    for event in get_recent_event_logs(limit, user=user):
-        intent_text = str(event.get("intent") or "Under observation")
-        rows.append(
-            {
-                "patient_label": f"Patient @ {event.get('camera_id', 'Cam')}",
-                "unit": f"Floor {event.get('floor', '--')} • Room {event.get('room_number', '--')}",
-                "camera_id": event.get("camera_id", "--"),
-                "last_event": intent_text,
-                "risk": "Critical" if event.get("alert") else ("Warning" if "stand" in intent_text.lower() else "OK"),
-                "risk_class": "crit" if event.get("alert") else ("warn" if "stand" in intent_text.lower() else "ok"),
-                "updated_label": _format_relative_time(event.get("ts")),
-            }
-        )
-    return rows
+    return fetch_patient_history_rows(limit, user=user)
 
 
 def _format_relative_time(timestamp: Optional[float]) -> str:
-    if not timestamp:
-        return "--"
-    delta = max(0, int(time.time() - float(timestamp)))
-    if delta < 60:
-        return f"{delta}s ago"
-    if delta < 3600:
-        return f"{delta // 60} min ago"
-    return f"{delta // 3600}h ago"
+    return format_relative_time(timestamp)
 
 
 def _read_fresh_frame(capture: cv2.VideoCapture, source_name: str) -> Tuple[bool, Optional[np.ndarray]]:
@@ -507,9 +745,10 @@ def _read_fresh_frame(capture: cv2.VideoCapture, source_name: str) -> Tuple[bool
 
 
 def _video_frame_interval(capture: cv2.VideoCapture) -> float:
-    fps = float(capture.get(cv2.CAP_PROP_FPS) or 24.0)
+    fps = float(capture.get(cv2.CAP_PROP_FPS) or CAPTURE_MAX_FPS)
     if fps < 1.0:
-        fps = 24.0
+        fps = CAPTURE_MAX_FPS
+    fps = min(fps, CAPTURE_MAX_FPS)
     return max(1.0 / fps, 0.02)
 
 
@@ -530,35 +769,25 @@ def _apply_cached_inference_overlay(frame: np.ndarray, cached: Dict[str, Any]) -
     bbox = cached.get("bbox")
     intent = str(cached.get("intent") or "Live stream active")
     alert = bool(cached.get("alert_triggered", False))
-    if bbox:
-        x1 = int(bbox.get("x1", 0))
-        y1 = int(bbox.get("y1", 0))
-        x2 = int(bbox.get("x2", 0))
-        y2 = int(bbox.get("y2", 0))
-        confidence = float(bbox.get("confidence") or 0.0)
-        color = (0, 0, 255) if alert else (0, 200, 0)
-        cv2.rectangle(output, (x1, y1), (x2, y2), color, 2)
-        cv2.putText(
-            output,
-            f"patient {confidence:.2f} | {intent[:48]}",
-            (x1 + 8, max(24, y1 - 10)),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.55,
-            (255, 255, 255),
-            2,
-            cv2.LINE_AA,
-        )
-    else:
-        cv2.putText(
-            output,
-            intent[:60],
-            (18, 36),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.7,
-            (0, 200, 0),
-            2,
-            cv2.LINE_AA,
-        )
+    if not bbox:
+        return output
+    x1 = int(bbox.get("x1", 0))
+    y1 = int(bbox.get("y1", 0))
+    x2 = int(bbox.get("x2", 0))
+    y2 = int(bbox.get("y2", 0))
+    confidence = float(bbox.get("confidence") or 0.0)
+    from monitor.ml_pipeline import PatientIntentPipeline
+    from monitor.runtime.context_builder import build_overlay_box_label
+
+    role_hint = str(cached.get("role_hint") or "person").strip().lower()
+    label = build_overlay_box_label(role_hint, confidence, intent)
+
+    PatientIntentPipeline.draw_detection_box(
+        output,
+        (x1, y1, x2, y2),
+        label,
+        alert_triggered=alert,
+    )
     return output
 
 
@@ -574,264 +803,363 @@ def _config_signature(config: Dict[str, Any]) -> str:
     )
 
 
-def _set_latest_display_chunk(chunk: Optional[bytes]) -> None:
-    global _LATEST_DISPLAY_CHUNK
-    if not chunk:
-        return
-    with DISPLAY_FRAME_LOCK:
-        _LATEST_DISPLAY_CHUNK = chunk
-
-
 def _get_latest_display_chunk() -> Optional[bytes]:
-    with DISPLAY_FRAME_LOCK:
-        return _LATEST_DISPLAY_CHUNK
+    return _RUNTIME_STATE.get_display_chunk()
 
 
-def _stop_inference_worker() -> None:
-    global _INFERENCE_THREAD, _WORKER_CACHED_INFERENCE
-    _INFERENCE_STOP.set()
-    thread = _INFERENCE_THREAD
-    if thread and thread.is_alive():
-        thread.join(timeout=3.0)
-    _INFERENCE_THREAD = None
-    _INFERENCE_STOP.clear()
-    while True:
-        try:
-            _INFERENCE_QUEUE.get_nowait()
-        except Empty:
-            break
-    with _WORKER_CACHED_LOCK:
-        _WORKER_CACHED_INFERENCE = None
+def _build_runtime_overlay_frame(
+    frame: np.ndarray, config: Dict[str, Any], overlay: Optional[ReasoningResult]
+) -> np.ndarray:
+    if overlay is None:
+        cached = _snapshot_latest_inference_state()
+        return _apply_cached_inference_overlay(
+            frame,
+            {
+                "intent": cached.get("intent") or "Live stream active",
+                "alert_triggered": bool(cached.get("alert")),
+                "bbox": cached.get("bbox"),
+            },
+        )
+    return _get_pipeline().compose_overlay_frame(frame, overlay)
 
 
-def _start_inference_worker(config: Dict[str, Any], source_name: str) -> None:
-    global _INFERENCE_THREAD
-    if _INFERENCE_THREAD and _INFERENCE_THREAD.is_alive():
+def _on_reasoning_result(result: ReasoningResult, config: Dict[str, Any], source_name: str) -> None:
+    capture_active = _RUNTIME_STATE.is_capture_active()
+    exit_reason = _RUNTIME_STATE.get_capture_exit_reason() or None
+
+    stored = _snapshot_latest_inference_state()
+    stored_fid = int(stored.get("llm_output_frame_id") or stored.get("frame_id") or 0)
+    if stored_fid and int(result.frame_id or 0) < stored_fid:
+        logger.debug(
+            "Skipping out-of-order LLM result frame_id=%s (stored decision frame=%s)",
+            result.frame_id,
+            stored_fid,
+        )
         return
-    _INFERENCE_STOP.clear()
-    _INFERENCE_THREAD = threading.Thread(
-        target=_inference_worker_loop,
-        args=(config, source_name),
-        name="medpercept-inference-worker",
-        daemon=True,
-    )
-    _INFERENCE_THREAD.start()
 
-
-def _queue_inference_frame(frame: np.ndarray, frame_index: int, config: Dict[str, Any]) -> None:
-    payload = (frame, frame_index, config)
-    try:
-        _INFERENCE_QUEUE.put_nowait(payload)
-    except Exception:
-        try:
-            _INFERENCE_QUEUE.get_nowait()
-        except Empty:
-            pass
-        try:
-            _INFERENCE_QUEUE.put_nowait(payload)
-        except Exception:
-            pass
-
-
-def _get_worker_cached_inference() -> Dict[str, Any]:
-    with _WORKER_CACHED_LOCK:
-        return dict(_WORKER_CACHED_INFERENCE or {})
-
-
-def _inference_worker_loop(config: Dict[str, Any], source_name: str) -> None:
-    global _WORKER_CACHED_INFERENCE
-    while not _INFERENCE_STOP.is_set():
-        try:
-            frame, frame_index, job_config = _INFERENCE_QUEUE.get(timeout=0.25)
-        except Empty:
-            continue
-
-        frame_started = time.time()
-        try:
-            result = _safe_process_frame(frame, job_config)
-            cached = dict(result)
-        except Exception as exc:
-            logger.exception("Background inference failed: %s", exc)
-            continue
-
-        with _WORKER_CACHED_LOCK:
-            _WORKER_CACHED_INFERENCE = cached
-
-        intent = str(cached.get("intent") or "Live stream active")
-        alert = bool(cached.get("alert_triggered", False))
-        bbox = cached.get("bbox")
-        pose_summary = cached.get("pose_summary")
-        latency_ms = int((time.time() - frame_started) * 1000)
-        display_frame = cached.get("annotated_frame")
-        height, width = (0, 0)
-        if display_frame is not None:
-            height, width = display_frame.shape[:2]
-
-        _append_event_log(
-            intent=intent,
-            alert=alert,
-            camera_id=str(job_config.get("camera_id") or "Cam-1"),
-            source=source_name,
-            building=str(job_config.get("building") or ""),
-            floor=str(job_config.get("floor_number") or ""),
-            room_number=str(job_config.get("room_number") or ""),
-            bbox=bbox,
-            latency_ms=latency_ms,
+    if not capture_active:
+        logger.debug(
+            "reasoning_result ignored for live API frame_id=%s — capture inactive reason=%s",
+            result.frame_id,
+            exit_reason,
         )
-
-        pipeline_status = {}
-        try:
-            pipeline_status = dict(_get_pipeline().model_status)
-        except Exception:
-            pipeline_status = {}
-
+        stale_state = _apply_capture_freshness(_snapshot_latest_inference_state())
         _update_latest_inference_state(
-            intent=intent,
-            alert=alert,
-            bbox=bbox,
-            updated_at=time.time(),
-            source=source_name,
-            status="ok",
-            error=None,
-            pose_summary=pose_summary,
-            building=job_config.get("building"),
-            floor=job_config.get("floor_number"),
-            room_number=job_config.get("room_number"),
-            camera_id=job_config.get("camera_id"),
-            connected_cameras=1,
-            registered_cameras=_count_registered_cameras(),
-            latency_ms=latency_ms,
-            frame_width=width,
-            frame_height=height,
-            model_status=pipeline_status,
-            recipient_count=len(
-                _location_recipients(
-                    str(job_config.get("building") or ""),
-                    str(job_config.get("floor_number") or ""),
-                )
-            ),
+            capture_active=False,
+            overlay_stale=True,
+            capture_exit_reason=exit_reason,
+            alert=False,
+            safety_label="STALE",
+            intent=stale_state.get("intent")
+            or f"Capture stopped — stale frame ({exit_reason or 'inactive'})",
+            status="stale",
         )
+        return
+
+    intent = str(result.intent or "Live stream active")
+    bbox = result.bbox
+    pose_summary = result.pose_summary
+
+    scores = dict(result.confidence_scores or {})
+    scores.setdefault("overlay_frame_id", result.frame_id)
+    snap = _RUNTIME_STATE.live_snapshot(int(result.frame_id or 0))
+    scores["capture_active"] = snap["capture_active"]
+    scores["capture_frame_id"] = snap["capture_frame_id"]
+    scores["capture_exit_reason"] = snap["capture_exit_reason"]
+    scores["overlay_stale"] = snap["overlay_stale"]
+    scores["overlay_frame_lag"] = snap.get("overlay_frame_lag")
+
+    structured = dict(scores.get("structured_reasoning") or {})
+    scene = dict(scores.get("scene") or {})
+    safety_label = str(structured.get("safety_label") or scores.get("safety_label") or "not provided")
+    risk_level = str(structured.get("risk_level") or result.risk_level or scores.get("risk_level") or "not provided")
+    scores["safety_label"] = safety_label
+    from monitor.runtime.display_fields import enrich_scores_with_capture
+
+    import copy
+
+    scene_snapshot = copy.deepcopy(scene)
+    if int(scene_snapshot.get("frame_id") or 0) != int(result.frame_id):
+        scores["reasoning_stale"] = True
+    scores["llm_output_frame_id"] = int(result.frame_id or 0)
+    scores["llm_scene_frame_id"] = int(result.frame_id or 0)
+    live_scene = _RUNTIME_STATE.get_perception_scene(int(result.frame_id or 0))
+    scores = enrich_scores_with_capture(
+        scores,
+        structured,
+        scene_snapshot,
+        snap,
+        intent=str(result.intent or ""),
+        decision_frame_id=int(result.frame_id),
+        live_scene=live_scene if int(live_scene.get("frame_id") or 0) <= int(result.frame_id or 0) else scene_snapshot,
+    )
+    reasoning_stale = bool(scores.get("reasoning_stale"))
+    alert = (
+        safety_label.upper() == "ALERT"
+        and bool(snap["capture_active"])
+        and not bool(snap["overlay_stale"])
+        and not reasoning_stale
+    )
+    display_sections = scores.get("display_sections") or {}
+
+    if alert:
+        logger.info(
+            "reasoning_result alert frame_id=%s intent=%r latency_ms=%s mode=%s",
+            result.frame_id,
+            intent,
+            result.latency_ms,
+            scores.get("reasoning_mode"),
+        )
+
+    persist_bbox = dict(bbox) if isinstance(bbox, dict) else None
+    if persist_bbox is not None:
+        rs = result.risk_score if result.risk_score is not None else scores.get("risk_score")
+        if rs is not None:
+            persist_bbox["risk_score"] = float(rs)
+        persist_bbox["risk_level"] = str(result.risk_level or scores.get("risk_level") or "not provided")
+        persist_bbox["reasoning_mode"] = scores.get("reasoning_mode")
+
+    _append_event_log(
+        intent=intent,
+        alert=alert,
+        camera_id=str(config.get("camera_id") or "Cam-1"),
+        source=source_name,
+        building=str(config.get("building") or ""),
+        floor=str(config.get("floor_number") or ""),
+        room_number=str(config.get("room_number") or ""),
+        bbox=persist_bbox,
+        latency_ms=result.latency_ms,
+        frame_id=result.frame_id,
+        role_hint=result.role_hint,
+        safety_label=safety_label,
+        reasoning_stale=reasoning_stale,
+    )
+
+    camera_id = str(config.get("camera_id") or "Cam-1")
+    _append_reasoning_history(result, source=source_name, camera_id=camera_id)
+
+    rs_log = result.risk_score if result.risk_score is not None else scores.get("risk_score")
+    logger.info(
+        "dashboard_api: frame_id=%s alert=%s intent=%r risk_score=%s risk_level=%s "
+        "mode=%s enable_ai=%s",
+        result.frame_id,
+        alert,
+        intent,
+        rs_log if rs_log is not None else "not provided",
+        result.risk_level or scores.get("risk_level"),
+        scores.get("reasoning_mode"),
+        bool(config.get("enable_ai_reasoning")),
+    )
+
+    stream_fps, (width, height) = _RUNTIME_STATE.get_stream_metrics()
+    from monitor.runtime.display_fields import apply_stale_llm_mask_to_state
+
+    publish_state = apply_stale_llm_mask_to_state(
+        {
+            "frame_id": result.frame_id,
+            "llm_output_frame_id": scores.get("llm_output_frame_id", result.frame_id),
+            "llm_scene_frame_id": scores.get("llm_scene_frame_id", result.frame_id),
+            "capture_frame_id": scores.get("capture_frame_id", result.frame_id),
+            "overlay_frame_id": scores.get("overlay_frame_id", result.frame_id),
+            "overlay_stale": bool(snap["overlay_stale"]),
+            "capture_active": bool(snap["capture_active"]),
+            "capture_exit_reason": snap["capture_exit_reason"],
+            "safety_label": safety_label,
+            "decision_source": structured.get("decision_source") or scores.get("decision_source"),
+            "patient_status": structured.get("patient_status"),
+            "staff_presence": structured.get("staff_presence"),
+            "alert_type": structured.get("alert_type"),
+            "reason": structured.get("reason"),
+            "summary": structured.get("summary"),
+            "intent": intent,
+            "alert": alert,
+            "reasoning_stale": reasoning_stale,
+            "reasoning_consistency_warning": bool(scores.get("reasoning_consistency_warning")),
+            "warning_text": scores.get("warning_text") or "",
+            "confidence_scores": scores,
+        }
+    )
+    _update_latest_inference_state(
+        frame_id=result.frame_id,
+        llm_output_frame_id=publish_state.get("llm_output_frame_id", result.frame_id),
+        llm_scene_frame_id=publish_state.get("llm_scene_frame_id", result.frame_id),
+        capture_frame_id=scores.get("capture_frame_id", result.frame_id),
+        overlay_frame_id=scores.get("overlay_frame_id", result.frame_id),
+        overlay_stale=bool(snap["overlay_stale"]),
+        capture_active=bool(snap["capture_active"]),
+        capture_exit_reason=snap["capture_exit_reason"],
+        safety_label=publish_state.get("safety_label", safety_label),
+        decision_source=structured.get("decision_source") or scores.get("decision_source"),
+        patient_status=publish_state.get("patient_status", structured.get("patient_status")),
+        staff_presence=publish_state.get("staff_presence", structured.get("staff_presence")),
+        alert_type=publish_state.get("alert_type", structured.get("alert_type")),
+        reason=publish_state.get("reason", structured.get("reason")),
+        summary=publish_state.get("summary", structured.get("summary")),
+        intent=publish_state.get("intent", intent),
+        alert=publish_state.get("alert", alert),
+        bbox=bbox,
+        updated_at=time.time(),
+        source=source_name,
+        status="live" if capture_active else "stale",
+        error=None,
+        pose_summary=pose_summary,
+        building=config.get("building"),
+        floor=config.get("floor_number"),
+        room_number=config.get("room_number"),
+        camera_id=camera_id,
+        connected_cameras=1,
+        registered_cameras=_count_registered_cameras(),
+        latency_ms=result.latency_ms,
+        frame_width=width,
+        frame_height=height,
+        stream_fps=stream_fps,
+        model_status=result.model_status,
+        confidence_scores=scores,
+        reasoning_health=scores.get("reasoning_health"),
+        monitor_status=result.monitor_status or "idle",
+        role_hint=result.role_hint or "unknown",
+        risk_score=result.risk_score if result.risk_score is not None else scores.get("risk_score"),
+        risk_level=risk_level,
+        display_sections=display_sections,
+        reasoning_trace=list(result.reasoning_trace or scores.get("reasoning_trace") or []),
+        reasoning_history=_snapshot_reasoning_history(12),
+        reasoning_stale=bool(publish_state.get("reasoning_stale", scores.get("reasoning_stale"))),
+        reasoning_consistency_warning=bool(publish_state.get("reasoning_consistency_warning")),
+        warning_text=publish_state.get("warning_text", scores.get("warning_text")),
+        llm_lag_frames=scores.get("llm_lag_frames"),
+        pose_frame_id=scores.get("pose_frame_id"),
+        pose_age_frames=scores.get("pose_age_frames"),
+        pose_updated_at=scores.get("pose_updated_at"),
+        reasoning_latency_ms=scores.get("reasoning_latency_ms") or result.latency_ms,
+        yolo_latency_ms=scores.get("yolo_latency_ms"),
+        llama_latency_ms=scores.get("llama_latency_ms"),
+        recipient_count=len(
+            _location_recipients(
+                str(config.get("building") or ""),
+                str(config.get("floor_number") or ""),
+            )
+        ),
+    )
+
+
+def _on_capture_offline(config: Dict[str, Any]) -> None:
+    offline = _frame_to_jpeg_chunk(
+        _build_status_frame("Camera Offline", config),
+        config,
+        offline=True,
+        frame_kind="camera-offline",
+    )
+    _RUNTIME_STATE.set_display_chunk(offline)
+    _update_latest_inference_state(
+        intent="Camera Offline",
+        alert=False,
+        status="offline",
+        error="Live camera frame could not be read.",
+        connected_cameras=0,
+        overlay_stale=True,
+        capture_active=False,
+        capture_exit_reason="frame read failed",
+    )
+
+
+def _on_stream_metrics(stream_fps: int, width: int, height: int, source_name: str) -> None:
+    _update_latest_inference_state(
+        stream_fps=stream_fps,
+        frame_width=width,
+        frame_height=height,
+        connected_cameras=1,
+        status="live",
+        source=source_name,
+    )
 
 
 def _stop_capture_worker() -> None:
-    global _CAPTURE_THREAD
-    _CAPTURE_STOP.set()
-    _stop_inference_worker()
-    thread = _CAPTURE_THREAD
-    if thread and thread.is_alive():
-        thread.join(timeout=3.0)
-    _CAPTURE_THREAD = None
-    _CAPTURE_STOP.clear()
-
-
-def _capture_worker_loop(capture: cv2.VideoCapture, source_name: str, config: Dict[str, Any]) -> None:
-    frame_index = 0
-    fps_window_start = time.time()
-    fps_frame_count = 0
-    stream_fps = 0
-    consecutive_failures = 0
-    video_mode = source_name.startswith("video:")
-    frame_interval = _video_frame_interval(capture) if video_mode else FRAME_SLEEP_SECONDS
-    inference_stride = INFERENCE_EVERY_N_FRAMES
-    if video_mode:
-        inference_stride = max(INFERENCE_EVERY_N_FRAMES, 4)
-
-    _start_inference_worker(config, source_name)
-
-    try:
-        while not _CAPTURE_STOP.is_set():
-            success, frame = _read_fresh_frame(capture, source_name)
-            if not success or frame is None:
-                consecutive_failures += 1
-                if video_mode:
-                    try:
-                        capture.set(cv2.CAP_PROP_POS_FRAMES, 0)
-                    except cv2.error as exc:
-                        logger.warning("Video rewind failed: %s", exc)
-                    time.sleep(frame_interval)
-                    continue
-
-                offline = _frame_to_jpeg_chunk(
-                    _build_status_frame("Camera Offline", config),
-                    config,
-                    offline=True,
-                    frame_kind="camera-offline",
-                )
-                _set_latest_display_chunk(offline)
-                _update_latest_inference_state(
-                    intent="Camera Offline",
-                    alert=False,
-                    status="offline",
-                    error="Live camera frame could not be read.",
-                    connected_cameras=0,
-                )
-                if consecutive_failures >= 30:
-                    logger.error("Capture worker stopping after repeated read failures for %s", source_name)
-                    break
-                time.sleep(0.2)
-                continue
-
-            consecutive_failures = 0
-            frame_index += 1
-            fps_frame_count += 1
-            elapsed = time.time() - fps_window_start
-            if elapsed >= 1.0:
-                stream_fps = int(round(fps_frame_count / elapsed))
-                fps_frame_count = 0
-                fps_window_start = time.time()
-
-            cached_inference = _get_worker_cached_inference()
-            run_inference = frame_index % inference_stride == 0 or not cached_inference
-            if run_inference:
-                _queue_inference_frame(frame.copy(), frame_index, config)
-
-            display_frame = _apply_cached_inference_overlay(frame, cached_inference)
-            live_chunk = _frame_to_jpeg_chunk(display_frame, config, offline=False, frame_kind="live")
-            _set_latest_display_chunk(live_chunk)
-
-            height, width = frame.shape[:2]
-            _update_latest_inference_state(
-                stream_fps=stream_fps,
-                frame_width=width,
-                frame_height=height,
-                connected_cameras=1,
-                status="ok",
-                source=source_name,
-            )
-
-            time.sleep(frame_interval)
-    except cv2.error as exc:
-        logger.exception("Capture worker OpenCV error for %s: %s", source_name, exc)
-    except Exception as exc:
-        logger.exception("Capture worker crashed for %s: %s", source_name, exc)
-    finally:
-        _stop_inference_worker()
-        _safe_release_capture(capture)
+    global _ORCHESTRATOR
+    with _ORCHESTRATOR_LOCK:
+        if _ORCHESTRATOR is not None:
+            _ORCHESTRATOR.stop()
+            _ORCHESTRATOR = None
 
 
 def _ensure_capture_worker(config: Dict[str, Any], capture: cv2.VideoCapture, source_name: str) -> None:
-    global _CAPTURE_THREAD, _CAPTURE_CONFIG_SIG
+    global _ORCHESTRATOR, _CAPTURE_CONFIG_SIG
     signature = _config_signature(config)
-    if _CAPTURE_THREAD and _CAPTURE_THREAD.is_alive() and _CAPTURE_CONFIG_SIG == signature:
-        _safe_release_capture(capture)
-        return
+    with _ORCHESTRATOR_LOCK:
+        if _ORCHESTRATOR is not None and _CAPTURE_CONFIG_SIG == signature:
+            _safe_release_capture(capture)
+            return
 
-    _stop_capture_worker()
-    _CAPTURE_CONFIG_SIG = signature
-    _CAPTURE_STOP.clear()
-    _CAPTURE_THREAD = threading.Thread(
-        target=_capture_worker_loop,
-        args=(capture, source_name, config),
-        name="medpercept-capture-worker",
-        daemon=True,
+        _stop_capture_worker()
+        _CAPTURE_CONFIG_SIG = signature
+        _RUNTIME_STATE.reset()
+
+        video_mode = source_name.startswith("video:")
+        inference_stride = INFERENCE_EVERY_N_FRAMES_VIDEO if video_mode else INFERENCE_EVERY_N_FRAMES
+
+        def metrics_cb(fps: int, w: int, h: int) -> None:
+            _on_stream_metrics(fps, w, h, source_name)
+
+        _ORCHESTRATOR = StreamOrchestrator(
+            state=_RUNTIME_STATE,
+            pipeline_getter=_get_pipeline,
+            read_frame_fn=_read_fresh_frame,
+            video_interval_fn=_video_frame_interval,
+            build_overlay_frame_fn=_build_runtime_overlay_frame,
+            encode_chunk_fn=_frame_to_jpeg_chunk,
+            on_reasoning_result=_on_reasoning_result,
+            on_stream_metrics=metrics_cb,
+            on_offline=lambda: _on_capture_offline(config),
+            on_capture_ended=_on_capture_ended,
+            inference_stride=inference_stride,
+            queue_size=RUNTIME_QUEUE_SIZE,
+        )
+        logger.info("[runtime] Ensuring capture worker signature=%s source=%s", signature, source_name)
+        _ORCHESTRATOR.start(capture, source_name, config)
+        _on_capture_started(source_name, config)
+
+
+def _stream_is_online(state: Dict[str, Any]) -> bool:
+    """True when capture is running and the MJPEG pipeline is producing frames."""
+    capture_live = _RUNTIME_STATE.is_capture_active() or bool(state.get("capture_active"))
+    if not capture_live:
+        return False
+    status = str(state.get("status") or "").lower()
+    if status in {"ok", "streaming", "live"}:
+        return True
+    if int(state.get("stream_fps") or 0) > 0:
+        return True
+    return int(state.get("connected_cameras") or 0) > 0
+
+
+def _resolve_dashboard_latency(state: Dict[str, Any]) -> Optional[int]:
+    """Best-effort end-to-end latency for dashboard stat cards."""
+    scores = state.get("confidence_scores") or {}
+    yolo_ms = scores.get("yolo_latency_ms")
+    reasoning_ms = (
+        scores.get("reasoning_latency_ms")
+        or scores.get("llama_latency_ms")
+        or state.get("reasoning_latency_ms")
     )
-    _CAPTURE_THREAD.start()
+    pipeline_ms = state.get("latency_ms")
+    if yolo_ms is not None and reasoning_ms is not None:
+        total = int(yolo_ms) + int(reasoning_ms)
+        if total > 0:
+            return total
+    for candidate in (pipeline_ms, reasoning_ms, yolo_ms):
+        if candidate is not None:
+            val = int(candidate)
+            if val > 0:
+                return val
+    stream_fps = int(state.get("stream_fps") or 0)
+    if stream_fps > 0:
+        return max(1, int(round(1000 / stream_fps)))
+    return None
 
 
 def build_monitor_camera_context(session) -> Tuple[list[Dict[str, Any]], int, int]:
     """Build camera tiles from DB; fall back to the active session camera."""
-    state = _snapshot_latest_inference_state()
-    stream_online = state.get("status") in {"ok", "streaming"}
+    state = _apply_capture_freshness(_snapshot_latest_inference_state())
+    stream_online = _stream_is_online(state)
     active_camera_id = str(
         state.get("camera_id")
         or _session_or_env(session, "monitor_camera_id", "MONITOR_CAMERA_ID", "Cam-1")
@@ -909,7 +1237,7 @@ def _warm_pipeline_async() -> None:
     def _runner() -> None:
         try:
             _get_pipeline()
-            logger.info("PatientIntentPipeline warmup complete.")
+            logger.info("PatientIntentPipeline warmup complete (YOLO only; Llama loads on first reasoning).")
         except Exception as exc:
             logger.warning("Pipeline warmup failed: %s", exc)
 
@@ -941,6 +1269,8 @@ def video_stream_gen(config: Dict[str, Any]) -> Iterator[bytes]:
     capture, source_name = _open_stream_source(config)
     _update_latest_inference_state(
         source=source_name,
+        capture_exit_reason=None,
+        overlay_stale=False,
         status="streaming" if capture is not None else "offline",
         monitoring_display=config.get("monitoring_display"),
         source_label=config.get("source_label"),
@@ -977,6 +1307,7 @@ def video_stream_gen(config: Dict[str, Any]) -> Iterator[bytes]:
 
     with _STREAM_CLIENTS_LOCK:
         _STREAM_CLIENTS += 1
+    logger.info("[runtime] MJPEG client connected; opening stream source=%s", source_name)
     _ensure_capture_worker(config, capture, source_name)
 
     try:
@@ -1029,8 +1360,10 @@ def live_stream_feed(request):
 @login_required
 def get_latest_alert(request):
     from accounts.permissions import apply_location_filter_to_inference_state, user_can_view_location
+    from monitor.runtime.pipeline_diagnostics import get_diagnostics
 
-    state = _snapshot_latest_inference_state()
+    api_started = time.time()
+    state = _apply_capture_freshness(_snapshot_latest_inference_state())
     building = str(state.get("building") or "").strip()
     floor = str(state.get("floor") or state.get("floor_number") or "").strip()
     recipients = _location_recipients(building, floor)
@@ -1046,24 +1379,154 @@ def get_latest_alert(request):
         response_state["assigned_floor"] = profile.assigned_floor
 
     camera_feeds, connected, registered = build_monitor_camera_context(request.session)
+    runtime_connected = int(state.get("connected_cameras") or 0)
+    if _stream_is_online(state):
+        runtime_connected = max(runtime_connected, 1)
+
     response_state["camera_feeds"] = camera_feeds
-    response_state["connected_cameras"] = connected
+    response_state["connected_cameras"] = max(connected, runtime_connected)
     response_state["registered_cameras"] = registered
-    if "active_alerts" not in response_state:
-        response_state["active_alerts"] = 1 if response_state.get("alert") else 0
-    response_state["patients_monitored"] = registered if registered else connected
-    response_state["latency_ms"] = state.get("latency_ms")
+    response_state["active_alerts"] = count_active_alerts(request.user)
+
+    reasoning_stale_api = bool(
+        response_state.get("reasoning_stale")
+        or (response_state.get("confidence_scores") or {}).get("reasoning_stale")
+    )
+
+    if (
+        response_state.get("alert")
+        and response_state.get("capture_active")
+        and not response_state.get("overlay_stale")
+        and not reasoning_stale_api
+    ):
+        response_state["active_alerts"] = max(response_state["active_alerts"], 1)
+    else:
+        response_state["active_alerts"] = 0
+
+    response_state["patients_monitored"] = registered if registered else max(
+        connected, response_state["connected_cameras"]
+    )
+    response_state["latency_ms"] = _resolve_dashboard_latency(state)
     response_state["stream_fps"] = state.get("stream_fps")
     response_state["frame_width"] = state.get("frame_width")
     response_state["frame_height"] = state.get("frame_height")
     response_state["enable_ai_reasoning"] = _ai_reasoning_enabled(request.session)
     response_state["recent_logs"] = get_recent_event_logs(30, user=request.user)
-    response_state["recent_alerts"] = get_recent_alerts(12, user=request.user)
+    response_state["live_logs"] = response_state["recent_logs"]
+    response_state["logs_updated_at"] = time.time()
     response_state["patient_history"] = get_patient_history_rows(25, user=request.user)
+
     if not response_state.get("model_status"):
         try:
             response_state["model_status"] = dict(_get_pipeline().model_status)
         except Exception:
             response_state["model_status"] = {}
+
+    try:
+        pipeline = _get_pipeline()
+        response_state["reasoning_health"] = dict(pipeline.reasoning_health)
+        response_state["reasoning_display"] = pipeline.reasoning_health.get("display_mode", "")
+    except Exception:
+        response_state["reasoning_health"] = {}
+        response_state["reasoning_display"] = "llama_unavailable"
+
+    if not response_state.get("reasoning_trace") and state.get("reasoning_trace"):
+        response_state["reasoning_trace"] = state.get("reasoning_trace")
+
+    if not response_state.get("risk_level"):
+        response_state["risk_level"] = state.get("risk_level", "not provided")
+
+    if not response_state.get("display_sections") and state.get("confidence_scores", {}).get("display_sections"):
+        response_state["display_sections"] = state["confidence_scores"]["display_sections"]
+
+    response_state = _apply_llm_fields(response_state)
+
+    scores = response_state.get("confidence_scores") or {}
+    api_publish_ms = int((time.time() - api_started) * 1000)
+    llm_frame = int(response_state.get("llm_output_frame_id") or response_state.get("frame_id") or 0)
+    capture_frame = int(response_state.get("capture_frame_id") or 0)
+    lag_frames = int(response_state.get("llm_lag_frames") or scores.get("llm_lag_frames") or 0)
+
+    if not lag_frames and capture_frame and llm_frame:
+        lag_frames = max(0, capture_frame - llm_frame)
+
+    reasoning_stale_api = bool(response_state.get("reasoning_stale") or scores.get("reasoning_stale"))
+    response_state["llm_lag_frames"] = lag_frames
+    response_state["llm_output_frame_id"] = llm_frame
+
+    get_diagnostics().on_api_publish(
+        llm_frame_id=llm_frame,
+        capture_frame_id=capture_frame,
+        lag_frames=lag_frames,
+        capture_active=bool(response_state.get("capture_active")),
+        reasoning_stale=reasoning_stale_api,
+        api_publish_ms=api_publish_ms,
+    )
+
+    response_state["recent_alerts"] = get_recent_alerts(
+        12,
+        user=request.user,
+        current_safety_label=response_state.get("safety_label"),
+        current_capture_active=bool(response_state.get("capture_active")),
+        current_reasoning_stale=reasoning_stale_api,
+    )
+
+    # FORCE ALERT CONDITION:
+    # Jab reasoning/dashboard output me "patient not in bed safely" ya off-bed status aaye,
+    # response_state["alert"] true hoga. Frontend is alert par alarm play karega.
+    scores = response_state.get("confidence_scores") or {}
+    structured = scores.get("structured_reasoning") or {}
+    display_sections = response_state.get("display_sections") or scores.get("display_sections") or {}
+
+    alert_text_parts = [
+        response_state.get("intent"),
+        response_state.get("summary"),
+        response_state.get("reason"),
+        response_state.get("patient_status"),
+        response_state.get("safety_label"),
+        response_state.get("alert_type"),
+        response_state.get("risk_level"),
+        structured.get("summary") if isinstance(structured, dict) else "",
+        structured.get("reason") if isinstance(structured, dict) else "",
+        structured.get("patient_status") if isinstance(structured, dict) else "",
+        structured.get("safety_label") if isinstance(structured, dict) else "",
+        structured.get("alert_type") if isinstance(structured, dict) else "",
+        structured.get("risk_level") if isinstance(structured, dict) else "",
+        str(display_sections),
+        str(scores),
+    ]
+
+    alert_text = " ".join(str(x or "").lower() for x in alert_text_parts)
+
+    patient_not_bed_alert = (
+        "patient not in bed safely" in alert_text
+        or "not in bed safely" in alert_text
+        or "patient_lying_off_bed" in alert_text
+        or "lying_off_bed" in alert_text
+        or "off_bed" in alert_text
+        or "off bed" in alert_text
+        or "not safely on bed" in alert_text
+        or "not on bed safely" in alert_text
+        or "patient not safely" in alert_text
+    )
+
+    if patient_not_bed_alert:
+        response_state["alert"] = True
+        response_state["safety_label"] = "ALERT"
+        response_state["alert_type"] = "patient_not_in_bed_safely"
+        response_state["risk_level"] = "critical"
+        response_state["active_alerts"] = 1
+
+        scores["safety_label"] = "ALERT"
+        scores["alert_type"] = "patient_not_in_bed_safely"
+        scores["risk_level"] = "critical"
+
+        if isinstance(structured, dict):
+            structured["safety_label"] = "ALERT"
+            structured["alert_type"] = "patient_not_in_bed_safely"
+            structured["risk_level"] = "critical"
+            scores["structured_reasoning"] = structured
+
+        response_state["confidence_scores"] = scores
 
     return JsonResponse(response_state)

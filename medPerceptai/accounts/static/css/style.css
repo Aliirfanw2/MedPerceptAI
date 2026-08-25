@@ -1,7 +1,9 @@
-/* Minimal project styles (Bootstrap-first) */
-
+/* Public pages (home, base navbar) */
 :root {
-  --med-blue: #0d6efd;
+  --med-primary: #0f766e;
+  --med-primary-light: #14b8a6;
+  --med-bg: #f8fafc;
+  --med-text: #0f172a;
 }
 
 body {
@@ -9,6 +11,21 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-.navbar-brand {
-  letter-spacing: 0.2px;
+.navbar-app {
+  background: linear-gradient(135deg, #0c4a42 0%, #0f766e 55%, #115e59 100%) !important;
+  box-shadow: 0 4px 20px rgba(15, 118, 110, 0.25);
+}
+
+.navbar-app .navbar-brand {
+  letter-spacing: -0.02em;
+  font-weight: 700;
+}
+
+.navbar-app .nav-link {
+  font-weight: 500;
+}
+
+footer.app-footer {
+  background: #0c121c !important;
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
 }

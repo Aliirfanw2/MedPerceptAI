@@ -1,4 +1,11 @@
-llama-cpp-python
-# RTX 4060 build example:
-# set CMAKE_ARGS=-DLLAMA_CUBLAS=on
-# pip install --no-cache-dir --force-reinstall llama-cpp-python
+# Core stack (install into env311 — see README)
+django
+python-dotenv
+opencv-python
+numpy
+torch
+ultralytics
+
+# Optional Llama — prebuilt wheel ONLY. Do NOT pip install from source (.tar.gz).
+# If pip shows "Building wheel for llama-cpp-python", cancel (Ctrl+C).
+# llama-cpp-python

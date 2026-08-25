@@ -45,3 +45,46 @@ class Camera(models.Model):
     def __str__(self) -> str:
         label = self.display_name.strip() if self.display_name else self.camera_identifier
         return f"{label} ({self.building}, Floor {self.floor})"
+
+
+class MonitoringEvent(models.Model):
+    """Persisted inference and alert events from the live pipeline."""
+
+    class EventType(models.TextChoices):
+        INFERENCE = "inference_update", "Inference update"
+        ALERT = "alert_emitted", "Alert emitted"
+
+    class Severity(models.TextChoices):
+        INFO = "info", "Info"
+        WARNING = "warning", "Warning"
+        CRITICAL = "critical", "Critical"
+
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    intent = models.TextField()
+    alert = models.BooleanField(default=False, db_index=True)
+    severity = models.CharField(
+        max_length=16,
+        choices=Severity.choices,
+        default=Severity.INFO,
+        db_index=True,
+    )
+    event_type = models.CharField(max_length=32, choices=EventType.choices)
+    camera_id = models.CharField(max_length=80, db_index=True)
+    building = models.CharField(max_length=120, db_index=True)
+    floor = models.CharField(max_length=30, db_index=True)
+    room_number = models.CharField(max_length=30, blank=True)
+    source = models.CharField(max_length=255, blank=True)
+    bbox = models.JSONField(null=True, blank=True)
+    latency_ms = models.PositiveIntegerField(null=True, blank=True)
+    frame_id = models.PositiveIntegerField(null=True, blank=True)
+    role_hint = models.CharField(max_length=64, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["-created_at", "building", "floor"]),
+            models.Index(fields=["alert", "-created_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.get_severity_display()} @ {self.camera_id}: {self.intent[:60]}"

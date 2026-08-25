@@ -2,530 +2,16 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>MedPerceptAI — Real-Time AI Monitoring Dashboard</title>
-
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
-      rel="stylesheet"
-    />
-
-    <link
-      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
-      rel="stylesheet"
-    />
-
-    <link
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
-      rel="stylesheet"
-    />
-
-    <style>
-      :root {
-        --bg: #0f172a;
-        --panel: #1e293b;
-        --text: #e5e7eb;
-        --muted: rgba(229, 231, 235, 0.68);
-
-        --accent: #3b82f6;
-        --danger: #ef4444;
-        --success: #22c55e;
-      }
-
-      html,
-      body {
-        height: 100%;
-      }
-
-      body {
-        font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-        background: radial-gradient(1200px 800px at 15% 0%, rgba(59, 130, 246, 0.14), transparent 55%),
-          radial-gradient(1000px 700px at 90% 25%, rgba(239, 68, 68, 0.1), transparent 55%),
-          var(--bg);
-        color: var(--text);
-        overflow-x: hidden;
-      }
-
-      .sidebar {
-        width: 280px;
-        background: linear-gradient(180deg, rgba(30, 41, 59, 0.96), rgba(30, 41, 59, 0.9));
-        border-right: 1px solid rgba(255, 255, 255, 0.06);
-        position: fixed;
-        inset: 0 auto 0 0;
-        z-index: 10;
-      }
-
-      .content {
-        margin-left: 280px;
-        min-height: 100vh;
-      }
-
-      @media (max-width: 991.98px) {
-        .sidebar {
-          position: relative;
-          width: 100%;
-          height: auto;
-        }
-        .content {
-          margin-left: 0;
-        }
-      }
-
-      .panel {
-        background: linear-gradient(180deg, rgba(30, 41, 59, 0.92), rgba(30, 41, 59, 0.85));
-        border: 1px solid rgba(255, 255, 255, 0.06);
-        border-radius: 14px;
-      }
-
-      .panel-soft {
-        background: rgba(30, 41, 59, 0.72);
-        border: 1px solid rgba(255, 255, 255, 0.06);
-        border-radius: 14px;
-      }
-
-      .muted {
-        color: var(--muted);
-      }
-
-      .nav-link-dark {
-        color: rgba(229, 231, 235, 0.75);
-        border-radius: 12px;
-        padding: 10px 12px;
-        display: flex;
-        gap: 10px;
-        align-items: center;
-        text-decoration: none;
-      }
-
-      .nav-link-dark:hover {
-        background: rgba(59, 130, 246, 0.1);
-        color: rgba(229, 231, 235, 0.92);
-      }
-
-      .nav-link-dark.active {
-        background: rgba(59, 130, 246, 0.16);
-        color: rgba(229, 231, 235, 0.96);
-        border: 1px solid rgba(59, 130, 246, 0.2);
-      }
-
-      .header {
-        position: sticky;
-        top: 0;
-        z-index: 5;
-        backdrop-filter: blur(12px);
-        background: rgba(15, 23, 42, 0.72);
-        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-      }
-
-      .badge-soft {
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        background: rgba(255, 255, 255, 0.06);
-        color: rgba(229, 231, 235, 0.86);
-      }
-
-      .clock {
-        font-variant-numeric: tabular-nums;
-        letter-spacing: 0.3px;
-      }
-
-      .stat-card {
-        position: relative;
-        overflow: hidden;
-      }
-
-      .stat-icon {
-        width: 42px;
-        height: 42px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 12px;
-        background: rgba(59, 130, 246, 0.16);
-        border: 1px solid rgba(59, 130, 246, 0.22);
-        color: rgba(229, 231, 235, 0.92);
-      }
-
-      .stat-value {
-        font-size: 1.6rem;
-        font-weight: 700;
-        letter-spacing: -0.02em;
-      }
-
-      .critical {
-        border: 1px solid rgba(239, 68, 68, 0.35);
-        background: linear-gradient(180deg, rgba(239, 68, 68, 0.1), rgba(30, 41, 59, 0.8));
-      }
-
-      .critical::after {
-        content: "";
-        position: absolute;
-        top: 14px;
-        right: 14px;
-        width: 12px;
-        height: 12px;
-        border-radius: 999px;
-        background: var(--danger);
-        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.65);
-        animation: pulse 1.2s ease-out infinite;
-      }
-
-      @keyframes pulse {
-        0% {
-          box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.55);
-        }
-        70% {
-          box-shadow: 0 0 0 14px rgba(239, 68, 68, 0);
-        }
-        100% {
-          box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
-        }
-      }
-
-      .feed {
-        position: relative;
-        border-radius: 16px;
-        overflow: hidden;
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        background: linear-gradient(135deg, rgba(30, 41, 59, 0.85), rgba(15, 23, 42, 0.88));
-        box-shadow: 0 18px 42px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.06);
-      }
-
-      /* Fullscreen support for the live feed */
-      .feed:fullscreen {
-        width: 100vw;
-        height: 100vh;
-        border-radius: 0;
-        border: 0;
-      }
-
-      .feed:fullscreen::before {
-        display: none;
-        padding-top: 0;
-      }
-
-      .feed:fullscreen .feed-inner {
-        position: absolute;
-        inset: 0;
-      }
-
-      .feed:-webkit-full-screen {
-        width: 100vw;
-        height: 100vh;
-        border-radius: 0;
-        border: 0;
-      }
-
-      .feed:-webkit-full-screen::before {
-        display: none;
-        padding-top: 0;
-      }
-
-      .feed:-webkit-full-screen .feed-inner {
-        position: absolute;
-        inset: 0;
-      }
-
-      .feed::before {
-        content: "";
-        display: block;
-        padding-top: 56.25%;
-      }
-
-      .feed-inner {
-        position: absolute;
-        inset: 0;
-        background: radial-gradient(900px 500px at 65% 30%, rgba(59, 130, 246, 0.2), transparent 55%),
-          radial-gradient(700px 420px at 25% 65%, rgba(239, 68, 68, 0.12), transparent 60%),
-          linear-gradient(135deg, rgba(2, 6, 23, 0.25), rgba(2, 6, 23, 0.55));
-      }
-
-      .feed-stream-host {
-        position: absolute;
-        inset: 0;
-        z-index: 1;
-      }
-
-      .feed-video {
-        position: absolute;
-        inset: 0;
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        opacity: 1;
-        background: #020617;
-        visibility: visible;
-        z-index: 1;
-      }
-
-      .stream-disconnected {
-        position: absolute;
-        inset: 0;
-        display: none;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: 12px;
-        text-align: center;
-        padding: 24px;
-        background: linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(2, 6, 23, 0.98));
-        color: rgba(229, 231, 235, 0.92);
-        z-index: 2;
-      }
-
-      .stream-disconnected.is-visible {
-        display: flex;
-      }
-
-      .stream-disconnected i {
-        font-size: 2rem;
-        color: rgba(239, 68, 68, 0.9);
-      }
-
-      .monitor-layout {
-        align-items: stretch;
-      }
-
-      .feed-video-overlay {
-        position: absolute;
-        inset: 0;
-        z-index: 0;
-        background: transparent;
-        pointer-events: none;
-      }
-
-      .feed.stream-active .feed-meta .tag.offline-badge {
-        display: none;
-      }
-
-      .feed-meta {
-        position: absolute;
-        inset: 12px 12px auto 12px;
-        display: flex;
-        gap: 10px;
-        align-items: center;
-        justify-content: space-between;
-        z-index: 2;
-      }
-
-      .tag {
-        border-radius: 999px;
-        padding: 6px 10px;
-        font-size: 0.82rem;
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        background: rgba(255, 255, 255, 0.06);
-        color: rgba(229, 231, 235, 0.88);
-      }
-
-      .tag.live {
-        border-color: rgba(239, 68, 68, 0.35);
-        background: rgba(239, 68, 68, 0.12);
-      }
-
-      .bbox {
-        position: absolute;
-        border-radius: 10px;
-        z-index: 2;
-        pointer-events: none;
-      }
-
-      .bbox.patient {
-        border: 2px solid rgba(239, 68, 68, 0.95);
-        box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2), 0 0 26px rgba(239, 68, 68, 0.18);
-      }
-
-      .bbox-label {
-        position: absolute;
-        top: -12px;
-        left: 10px;
-        padding: 5px 10px;
-        border-radius: 999px;
-        font-size: 0.8rem;
-        font-weight: 600;
-        background: rgba(2, 6, 23, 0.72);
-        border: 1px solid rgba(255, 255, 255, 0.12);
-        color: rgba(229, 231, 235, 0.94);
-        backdrop-filter: blur(10px);
-      }
-
-
-      .glass-banner {
-        position: absolute;
-        inset: auto 12px 12px 12px;
-        z-index: 3;
-        border-radius: 14px;
-        padding: 12px 14px;
-        background: rgba(15, 23, 42, 0.55);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        backdrop-filter: blur(14px);
-        display: flex;
-        gap: 10px;
-        align-items: center;
-      }
-
-      .glass-banner .badge {
-        background: rgba(239, 68, 68, 0.16) !important;
-        border: 1px solid rgba(239, 68, 68, 0.28);
-        color: rgba(255, 255, 255, 0.92) !important;
-      }
-
-      .terminal {
-        background: #020617;
-        border: 1px solid rgba(34, 197, 94, 0.18);
-        border-radius: 12px;
-        height: 260px;
-        overflow: auto;
-        padding: 12px;
-        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
-          monospace;
-        font-size: 0.86rem;
-        color: rgba(34, 197, 94, 0.92);
-      }
-
-      .terminal .line {
-        white-space: pre;
-        margin: 0;
-      }
-
-      .form-select,
-      .btn,
-      .form-control {
-        border-radius: 12px;
-      }
-
-      .form-select {
-        background-color: rgba(30, 41, 59, 0.75);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        color: rgba(229, 231, 235, 0.92);
-      }
-
-      .form-select:focus {
-        box-shadow: 0 0 0 0.2rem rgba(59, 130, 246, 0.2);
-        border-color: rgba(59, 130, 246, 0.55);
-      }
-
-      .btn-accent {
-        background: var(--accent);
-        border-color: rgba(59, 130, 246, 0.55);
-      }
-
-      .btn-accent:hover {
-        background: #2563eb;
-        border-color: #2563eb;
-      }
-
-      .monitor-alert-card {
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        background: linear-gradient(180deg, rgba(30, 41, 59, 0.94), rgba(15, 23, 42, 0.88));
-        border-radius: 18px;
-        box-shadow: 0 16px 34px rgba(0, 0, 0, 0.22);
-        transition: border-color 180ms ease, background 180ms ease, box-shadow 180ms ease, transform 180ms ease;
-      }
-
-      .monitor-alert-card.alert-active {
-        border-color: rgba(239, 68, 68, 0.65);
-        background: linear-gradient(180deg, rgba(127, 29, 29, 0.9), rgba(69, 10, 10, 0.88));
-        box-shadow: 0 18px 38px rgba(239, 68, 68, 0.18);
-        transform: translateY(-1px);
-      }
-
-      .monitor-alert-title {
-        font-size: 0.76rem;
-        letter-spacing: 0.12em;
-        text-transform: uppercase;
-        color: rgba(229, 231, 235, 0.72);
-      }
-
-      .monitor-alert-intent {
-        font-size: 1rem;
-        font-weight: 600;
-        line-height: 1.4;
-        color: rgba(255, 255, 255, 0.96);
-      }
-
-      .monitor-alert-meta {
-        font-size: 0.85rem;
-        color: rgba(229, 231, 235, 0.72);
-      }
-
-      .monitor-alert-chip {
-        border-radius: 999px;
-        padding: 6px 10px;
-        font-size: 0.8rem;
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        background: rgba(255, 255, 255, 0.06);
-        color: rgba(255, 255, 255, 0.9);
-      }
-
-      .monitor-alert-chip.alert-live {
-        border-color: rgba(239, 68, 68, 0.36);
-        background: rgba(239, 68, 68, 0.16);
-      }
-    </style>
+    {% include "includes/app_head.html" %}
   </head>
 
-  <body>
-    <aside class="sidebar d-flex flex-column p-3 p-lg-4">
-      <div class="d-flex align-items-center gap-2 mb-3">
-        <div
-          class="d-inline-flex align-items-center justify-content-center rounded-3"
-          style="width: 38px; height: 38px; background: rgba(59,130,246,0.18); border: 1px solid rgba(59,130,246,0.25);"
-        >
-          <i class="fa-solid fa-heart-pulse" style="color: rgba(229,231,235,0.92)"></i>
-        </div>
-        <div>
-          <div class="fw-bold">MedPerceptAI</div>
-          <div class="small muted">Real-Time Monitoring</div>
-        </div>
-      </div>
+  <body class="app-body">
 
-      <div class="panel-soft p-2 mb-3">
-        <a class="nav-link-dark active" href="{% url 'dashboard' %}">
-          <i class="fa-solid fa-gauge-high"></i>
-          <span>Dashboard</span>
-        </a>
-        <a class="nav-link-dark" href="{% url 'live_monitor' %}">
-          <i class="fa-solid fa-camera"></i>
-          <span>Cameras</span>
-          <span class="ms-auto badge rounded-pill badge-soft" id="sidebarCameraBadge">{{ registered_cameras|default:0 }}</span>
-        </a>
-        <a class="nav-link-dark" href="{% url 'alerts' %}">
-          <i class="fa-solid fa-triangle-exclamation"></i>
-          <span>Alerts</span>
-        </a>
-        <a class="nav-link-dark" href="{% url 'patient_history' %}">
-          <i class="fa-solid fa-notes-medical"></i>
-          <span>Patient History</span>
-        </a>
-        <a class="nav-link-dark" href="{% url 'settings' %}">
-          <i class="fa-solid fa-gear"></i>
-          <span>Settings</span>
-        </a>
-      </div>
+    <audio id="alarmSound" src="/media/alarm.mp3" preload="auto"></audio>
+    {% include "includes/app_sidebar.html" %}
 
-      <div class="mt-auto">
-        <div class="panel p-3 d-flex align-items-center gap-3">
-          <div
-            class="rounded-circle d-inline-flex align-items-center justify-content-center"
-            style="width: 44px; height: 44px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.10);"
-            aria-hidden="true"
-          >
-            <i class="fa-solid fa-user-doctor muted"></i>
-          </div>
-          <div class="flex-grow-1">
-            <div class="fw-semibold">{{ user.get_full_name|default:user.get_username|default:"Operator" }}</div>
-            <div class="small muted">{{ layout_shift_label|default:staff_role }}</div>
-          </div>
-        </div>
-      </div>
-    </aside>
-
-    <div class="content">
+        <div class="content">
       <header class="header">
         <div class="container-fluid py-3 px-3 px-lg-4">
           <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
@@ -546,7 +32,7 @@
               </span>
               <div class="d-flex align-items-center gap-2">
                 <span class="muted small d-none d-sm-inline">Camera</span>
-                <select class="form-select form-select-sm" id="cameraSelect" style="min-width: 190px">
+                <select class="form-select form-select-sm dashboard-camera-select" id="cameraSelect">
                   {% for camera in camera_feeds %}
                   <option value="{{ camera.id }}" {% if camera.id == selected_camera %}selected{% endif %}>
                     {{ camera.name }} ({{ camera.subtitle }})
@@ -591,7 +77,7 @@
               <div class="d-flex align-items-start justify-content-between">
                 <div>
                   <div class="muted small">Real-time Alerts</div>
-                  <div class="stat-value mt-1" id="activeAlertsStat">0</div>
+                  <div class="stat-value mt-1" id="activeAlertsStat">{{ active_alerts_count|default:0 }}</div>
                   <div class="muted small mt-1" id="activeAlertsMeta">
                     <i class="fa-solid fa-triangle-exclamation me-1"></i>No critical alerts
                   </div>
@@ -625,9 +111,9 @@
               <div class="d-flex align-items-start justify-content-between">
                 <div>
                   <div class="muted small">System Latency</div>
-                  <div class="stat-value mt-1" id="latencyStat">--</div>
+                  <div class="stat-value mt-1" id="latencyStat">{% if latency_ms %}{{ latency_ms|floatformat:0 }}ms{% else %}—{% endif %}</div>
                   <div class="muted small mt-1" id="latencyMeta">
-                    <i class="fa-solid fa-bolt me-1"></i>Waiting for stream metrics
+                    <i class="fa-solid fa-bolt me-1"></i>{% if stream_fps %} {{ stream_fps }} FPS stream{% else %}Waiting for stream metrics{% endif %}
                   </div>
                 </div>
                 <div class="stat-icon">
@@ -643,22 +129,17 @@
             <div class="panel p-3">
               <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
                 <div>
-                  <div class="fw-semibold">Live Feed {{ selected_camera|default:monitor_camera_id }}</div>
-                  <div class="small muted">AI overlays: detection • pose estimation • intent banner</div>
+                  <div class="fw-semibold">Live Feed — {{ selected_camera|default:monitor_camera_id }}</div>
+                  <div class="small muted">{{ monitor_source_label|default:"Live Camera Feed" }}</div>
                 </div>
-                <div class="d-flex gap-2">
-                  <button class="btn btn-sm btn-accent text-white" type="button">
-                    <i class="fa-solid fa-play me-1"></i>Live
-                  </button>
-                  <button
-                    class="btn btn-sm btn-outline-light"
-                    type="button"
-                    style="border-color: rgba(255,255,255,0.14);"
-                    id="feedFullscreenBtn"
-                  >
-                    <i class="fa-solid fa-expand me-1" aria-hidden="true"></i><span>Fullscreen</span>
-                  </button>
-                </div>
+                <button
+                  class="btn btn-sm btn-outline-light"
+                  type="button"
+                  style="border-color: rgba(255,255,255,0.14);"
+                  id="feedFullscreenBtn"
+                >
+                  <i class="fa-solid fa-expand me-1" aria-hidden="true"></i><span>Fullscreen</span>
+                </button>
               </div>
 
               <div class="feed" id="liveFeed">
@@ -685,28 +166,10 @@
                   <div class="feed-video-overlay" aria-hidden="true"></div>
 
                   <div class="feed-meta">
-                    <div class="d-flex gap-2 align-items-center">
-                      <span class="tag live"><i class="fa-solid fa-circle me-1"></i>LIVE</span>
-                      <span class="tag" id="streamSourceTag"><i class="fa-solid fa-wifi me-1"></i>{{ monitor_source_label|default:"Live Camera Feed" }}</span>
-                      <span class="tag"><i class="fa-solid fa-brain me-1"></i>AI: ON</span>
-                    </div>
-                    <div class="d-flex gap-2 align-items-center">
-                      <span class="tag"><i class="fa-solid fa-shield-halved me-1"></i>HIPAA Mode</span>
-                    </div>
+                    <span class="tag live"><i class="fa-solid fa-circle me-1"></i>LIVE</span>
+                    <span class="tag" id="feedStatusTag"><i class="fa-solid fa-shield-heart me-1"></i>Monitoring</span>
                   </div>
                 </div>
-              </div>
-
-              <div class="d-flex flex-wrap gap-2 mt-3">
-                <span class="badge rounded-pill badge-soft px-3 py-2">
-                  <i class="fa-solid fa-cube me-1"></i>Model: VLPIS v2.3
-                </span>
-                <span class="badge rounded-pill badge-soft px-3 py-2" id="streamResolutionBadge">
-                  <i class="fa-solid fa-camera me-1"></i>Resolution: --
-                </span>
-                <span class="badge rounded-pill badge-soft px-3 py-2" id="streamFpsBadge">
-                  <i class="fa-solid fa-gauge me-1"></i>FPS: --
-                </span>
               </div>
             </div>
           </div>
@@ -716,24 +179,37 @@
               <div class="d-flex align-items-start justify-content-between gap-3 mb-2">
                 <div>
                   <div class="monitor-alert-title">Live Intent</div>
-                  <div class="monitor-alert-intent mt-1" id="latestIntentText">System warming up</div>
+                  <div class="monitor-alert-intent mt-1" id="latestIntentText">{{ live_intent }}</div>
                 </div>
-                <span class="monitor-alert-chip" id="latestAlertBadge">
-                  <i class="fa-solid fa-shield-heart"></i>
-                  Stable
+                <span class="monitor-alert-chip {% if live_alert %}alert-live{% endif %}" id="latestAlertBadge">
+                  {% if live_alert %}
+                  <i class="fa-solid fa-triangle-exclamation"></i> Alert
+                  {% else %}
+                  <i class="fa-solid fa-shield-heart"></i> Stable
+                  {% endif %}
                 </span>
               </div>
               <div class="monitor-alert-meta d-flex flex-wrap gap-3">
-                <span id="latestAlertSource">Source: --</span>
                 <span id="latestAlertUpdated">Updated: --</span>
+                <span id="captureStatusTag">Stream: --</span>
+              </div>
+            </div>
+
+            <div class="panel p-3 mb-3" id="reasoningOutputPanel">
+              <div class="fw-semibold mb-1"><i class="fa-solid fa-brain me-1"></i>Reasoning Output</div>
+              <div class="small muted mb-3">LLM final decision — patient status, safety, and summary</div>
+              <div class="source-section">
+                <div class="source-grid" id="llmDecisionGrid">
+                  <div class="muted small">Waiting for reasoning output…</div>
+                </div>
               </div>
             </div>
 
             <div class="panel p-3 mb-3">
               <div class="d-flex align-items-center justify-content-between mb-2">
                 <div class="fw-semibold">Real-time Logs</div>
-                <span class="badge rounded-pill badge-soft">
-                  <i class="fa-solid fa-terminal me-1"></i>JSON
+                <span class="badge rounded-pill badge-soft" id="logLiveBadge">
+                  <i class="fa-solid fa-circle me-1 text-success"></i>Live
                 </span>
               </div>
               <div class="terminal" id="logTerminal" aria-label="Real-time JSON logs">
@@ -765,45 +241,54 @@
       setInterval(updateClock, 1000);
 
       const terminalEl = document.getElementById("logTerminal");
-      const logKeysSeen = new Set();
-
-      function appendLogLine(obj) {
-        if (!terminalEl) return;
-        const key = `${obj.ts || ""}:${obj.event || ""}:${obj.intent || ""}`;
-        if (logKeysSeen.has(key)) return;
-        logKeysSeen.add(key);
-        while (logKeysSeen.size > 120) {
-          const first = logKeysSeen.values().next().value;
-          logKeysSeen.delete(first);
-        }
-
-        const div = document.createElement("div");
-        div.className = "line";
-        div.textContent = JSON.stringify(obj);
-        terminalEl.appendChild(div);
-        while (terminalEl.children.length > 80) {
-          terminalEl.removeChild(terminalEl.firstChild);
-        }
-        terminalEl.scrollTop = terminalEl.scrollHeight;
-      }
+      const logLiveBadge = document.getElementById("logLiveBadge");
 
       function renderRecentLogs(state) {
-        const logs = Array.isArray(state?.recent_logs) ? state.recent_logs : [];
-        if (!logs.length && terminalEl && terminalEl.children.length === 1) {
+        if (!terminalEl) return;
+
+        const logs = Array.isArray(state?.live_logs)
+          ? state.live_logs
+          : Array.isArray(state?.recent_logs)
+            ? state.recent_logs
+            : [];
+
+        if (!logs.length) {
+          if (!terminalEl.querySelector(".line:not(.muted)")) {
+            terminalEl.innerHTML = '<div class="line muted">Waiting for live inference events…</div>';
+          }
           return;
         }
-        logs.slice(0, 12).reverse().forEach((entry) => {
-          appendLogLine({
-            ts: entry.ts ? new Date(entry.ts * 1000).toISOString() : new Date().toISOString(),
-            camera: entry.camera_id,
-            source: entry.source,
-            event: entry.event,
+
+        const lines = logs.slice(0, 35).map((entry) => {
+          const ts = entry.ts
+            ? new Date(Number(entry.ts) * 1000).toLocaleTimeString()
+            : new Date().toLocaleTimeString();
+          const payload = {
+            time: ts,
+            event: entry.event || "inference",
+            frame_id: entry.frame_id,
             intent: entry.intent,
             alert: entry.alert,
+            risk_score: entry.risk_score,
+            risk_level: entry.risk_level,
+            mode: entry.reasoning_mode,
+            role: entry.role_hint,
             latency_ms: entry.latency_ms,
-            bbox: entry.bbox,
-          });
+            camera: entry.camera_id,
+          };
+          const alertClass = entry.alert ? "line log-alert" : "line";
+          return `<div class="${alertClass}">${JSON.stringify(payload)}</div>`;
         });
+
+        terminalEl.innerHTML = lines.join("");
+        terminalEl.scrollTop = 0;
+
+        if (logLiveBadge) {
+          const syncTs = state?.logs_updated_at
+            ? new Date(Number(state.logs_updated_at) * 1000).toLocaleTimeString()
+            : new Date().toLocaleTimeString();
+          logLiveBadge.innerHTML = `<i class="fa-solid fa-circle me-1 text-success"></i>Live · ${syncTs}`;
+        }
       }
 
       const feedEl = document.getElementById("liveFeed");
@@ -914,33 +399,62 @@
       const latestIntentText = document.getElementById("latestIntentText");
       const latestAlertCard = document.getElementById("latestAlertCard");
       const latestAlertBadge = document.getElementById("latestAlertBadge");
-      const latestAlertSource = document.getElementById("latestAlertSource");
       const latestAlertUpdated = document.getElementById("latestAlertUpdated");
+      const captureStatusTag = document.getElementById("captureStatusTag");
+      const feedStatusTag = document.getElementById("feedStatusTag");
       let alertTonePlayed = false;
 
-      function playAlertTone() {
-        if (alertTonePlayed) return;
-        alertTonePlayed = true;
-        try {
-          const AudioCtx = window.AudioContext || window.webkitAudioContext;
-          if (!AudioCtx) return;
-          const ctx = new AudioCtx();
-          const oscillator = ctx.createOscillator();
-          const gainNode = ctx.createGain();
-          oscillator.type = "sine";
-          oscillator.frequency.value = 880;
-          oscillator.connect(gainNode);
-          gainNode.connect(ctx.destination);
-          gainNode.gain.value = 0.0001;
-          oscillator.start();
-          gainNode.gain.exponentialRampToValueAtTime(0.15, ctx.currentTime + 0.02);
-          gainNode.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.35);
-          oscillator.stop(ctx.currentTime + 0.38);
-          oscillator.onended = () => ctx.close().catch(() => {});
-        } catch (error) {
-          console.warn("Alert tone unavailable", error);
-        }
-      }
+     function unlockAlarmOnce() {
+  const alarm = document.getElementById("alarmSound");
+  if (!alarm) return;
+
+  alarm.play()
+    .then(() => {
+      alarm.pause();
+      alarm.currentTime = 0;
+    })
+    .catch(() => {});
+}
+
+document.addEventListener("click", unlockAlarmOnce, { once: true });
+
+function playAlertTone() {
+  if (alertTonePlayed) return;
+  alertTonePlayed = true;
+
+  try {
+    const alarm = document.getElementById("alarmSound");
+    if (!alarm) {
+      console.warn("alarmSound audio tag not found");
+      return;
+    }
+
+    alarm.pause();
+    alarm.currentTime = 0;
+    alarm.loop = true;
+
+    const playPromise = alarm.play();
+
+    if (playPromise !== undefined) {
+      playPromise.catch((error) => {
+        console.warn("Alarm blocked. Click once on dashboard page and try again.", error);
+      });
+    }
+  } catch (error) {
+    console.warn("Alert tone unavailable", error);
+  }
+}
+
+function stopAlertTone() {
+  alertTonePlayed = false;
+
+  const alarm = document.getElementById("alarmSound");
+  if (!alarm) return;
+
+  alarm.pause();
+  alarm.currentTime = 0;
+  alarm.loop = false;
+}
 
       const connectedCamerasStat = document.getElementById("connectedCamerasStat");
       const connectedCamerasLabel = document.getElementById("connectedCamerasLabel");
@@ -950,9 +464,50 @@
       const patientsMonitoredStat = document.getElementById("patientsMonitoredStat");
       const latencyStat = document.getElementById("latencyStat");
       const latencyMeta = document.getElementById("latencyMeta");
-      const streamResolutionBadge = document.getElementById("streamResolutionBadge");
-      const streamFpsBadge = document.getElementById("streamFpsBadge");
       const liveFeed = document.getElementById("liveFeed");
+      const DASHBOARD_POLL_MS = 800;
+
+      const REASONING_FIELD_ORDER = [
+        "summary",
+        "reason",
+        "patient_status",
+        "staff_presence",
+        "staff_activity",
+        "equipment_context",
+        "safety_label",
+        "alert_type",
+        "risk_level",
+        "risk_score",
+      ];
+
+      function formatSourceField(key, field) {
+        if (!field || typeof field !== "object") return "";
+        let value = field.value;
+        if (typeof value === "boolean") value = value ? "Yes" : "No";
+        if (Array.isArray(value)) value = value.length ? value.join(", ") : "none";
+        if (value === null || value === undefined || value === "") value = "—";
+        const source = field.source || "—";
+        const label = key.replace(/_/g, " ");
+        return `<div class="source-row"><span class="source-label">${label}</span><span class="source-value">${value}</span><span class="source-tag">${source}</span></div>`;
+      }
+
+      function renderReasoningOutput(state) {
+        const el = document.getElementById("llmDecisionGrid");
+        if (!el) return;
+        const sections =
+          state?.display_sections ||
+          state?.confidence_scores?.display_sections ||
+          {};
+        const llm = sections.llm_final_decision || sections.llm_decision || {};
+        const ordered = REASONING_FIELD_ORDER.filter((key) => llm[key]).map((key) => [key, llm[key]]);
+        const extra = Object.entries(llm).filter(([key]) => !REASONING_FIELD_ORDER.includes(key));
+        const all = [...ordered, ...extra];
+        if (!all.length) {
+          el.innerHTML = '<div class="muted small">Waiting for reasoning output…</div>';
+          return;
+        }
+        el.innerHTML = all.map(([key, field]) => formatSourceField(key, field)).join("");
+      }
 
       function updateCameraStats(state) {
         const connected = Number(state?.connected_cameras ?? 0);
@@ -968,95 +523,247 @@
         if (patientsMonitoredStat) {
           patientsMonitoredStat.textContent = String(state?.patients_monitored ?? registered ?? 0);
         }
+        const structured = state?.confidence_scores?.structured_reasoning || {};
+        const safetyLabel = String(state?.safety_label || structured.safety_label || "").toUpperCase();
+        const riskLevel = String(state?.risk_level || structured.risk_level || "").toLowerCase();
+        const captureLive = state?.capture_active === true;
+        const reasoningStale = Boolean(state?.reasoning_stale || state?.confidence_scores?.reasoning_stale);
+        const liveAlertActive =
+          captureLive &&
+          !state?.overlay_stale &&
+          !reasoningStale &&
+          safetyLabel === "ALERT";
+        const liveWarning =
+          captureLive &&
+          !state?.overlay_stale &&
+          !reasoningStale &&
+          !liveAlertActive &&
+          (safetyLabel === "MONITOR" || riskLevel === "warning");
         if (activeAlertsStat) {
-          activeAlertsStat.textContent = String(state?.active_alerts ?? (state?.alert ? 1 : 0));
+          activeAlertsStat.textContent = String(liveAlertActive ? 1 : (state?.active_alerts ?? 0));
         }
         if (activeAlertsMeta) {
-          activeAlertsMeta.innerHTML = state?.alert
-            ? '<i class="fa-solid fa-triangle-exclamation me-1"></i>Critical alert active'
-            : '<i class="fa-solid fa-triangle-exclamation me-1"></i>No critical alerts';
+          activeAlertsMeta.innerHTML = liveAlertActive
+            ? '<i class="fa-solid fa-triangle-exclamation me-1"></i>LLM alert active'
+            : liveWarning
+              ? '<i class="fa-solid fa-clock me-1"></i>LLM monitor / warning'
+              : '<i class="fa-solid fa-shield-heart me-1"></i>No LLM alert';
         }
         if (latencyStat) {
+          const scores = state?.confidence_scores || {};
+          let latency = state?.latency_ms;
+          if (latency == null || Number(latency) <= 0) {
+            const yolo = Number(scores.yolo_latency_ms || 0);
+            const reasoning = Number(
+              scores.reasoning_latency_ms || scores.llama_latency_ms || 0
+            );
+            if (yolo > 0 && reasoning > 0) latency = yolo + reasoning;
+            else if (reasoning > 0) latency = reasoning;
+            else if (yolo > 0) latency = yolo;
+            else if (Number(state?.stream_fps) > 0) {
+              latency = Math.max(1, Math.round(1000 / Number(state.stream_fps)));
+            }
+          }
           latencyStat.textContent =
-            state?.latency_ms != null ? `${Math.round(Number(state.latency_ms))}ms` : "--";
+            latency != null && Number(latency) > 0 ? `${Math.round(Number(latency))}ms` : "—";
         }
         if (latencyMeta) {
           const fps = state?.stream_fps != null ? Number(state.stream_fps) : 0;
           latencyMeta.innerHTML = `<i class="fa-solid fa-bolt me-1"></i>${fps > 0 ? `${fps} FPS stream` : "Realtime inference"}`;
         }
-        if (streamResolutionBadge && state?.frame_width && state?.frame_height) {
-          streamResolutionBadge.innerHTML = `<i class="fa-solid fa-camera me-1"></i>Resolution: ${state.frame_width}×${state.frame_height}`;
-        }
-        if (streamFpsBadge && state?.stream_fps != null) {
-          streamFpsBadge.innerHTML = `<i class="fa-solid fa-gauge me-1"></i>FPS: ${state.stream_fps}`;
-        }
-        const streamSourceTag = document.getElementById("streamSourceTag");
-        if (streamSourceTag && state?.source) {
-          const label = String(state.source).startsWith("video:")
-            ? "Pre-recorded Video"
-            : "Live Camera Feed";
-          streamSourceTag.innerHTML = `<i class="fa-solid fa-wifi me-1"></i>${label}`;
-        }
         if (liveFeed) {
-          liveFeed.classList.toggle("stream-active", connected > 0 || state?.status === "ok");
+          liveFeed.classList.toggle(
+            "stream-active",
+            connected > 0 || state?.status === "ok" || state?.status === "live"
+          );
         }
       }
 
-      function updateAlertUi(state) {
-        if (!latestIntentText || !latestAlertCard || !latestAlertBadge) return;
+      function resolveLiveAlertState(state) {
+  const captureLive = state?.capture_active === true;
+  const overlayStale = Boolean(state?.overlay_stale);
+  const reasoningStale = Boolean(state?.reasoning_stale || state?.confidence_scores?.reasoning_stale);
+  const stale = !captureLive || overlayStale;
 
-        updateCameraStats(state);
-        renderRecentLogs(state);
-        if (state?.status === "ok" || Number(state?.connected_cameras) > 0) {
-          showStreamConnected();
-        }
+  const structured = state?.confidence_scores?.structured_reasoning || {};
+  const sections = state?.display_sections || state?.confidence_scores?.display_sections || {};
+  const llm = sections.llm_final_decision || sections.llm_decision || {};
 
-        const intent = state?.intent || "No intent available";
-        const alertActive = Boolean(state?.alert);
-        const source = state?.source || "--";
-        const updatedAt = state?.updated_at ? new Date(state.updated_at * 1000).toLocaleTimeString() : "--";
+  const safetyLabel = String(
+    state?.safety_label || structured.safety_label || "not provided"
+  ).toUpperCase();
 
-        latestIntentText.textContent = intent;
-        latestAlertSource.textContent = `Source: ${source}`;
-        latestAlertUpdated.textContent = `Updated: ${updatedAt}`;
-        latestAlertCard.classList.toggle("alert-active", alertActive);
-        latestAlertBadge.classList.toggle("alert-live", alertActive);
-        latestAlertBadge.innerHTML = alertActive
-          ? '<i class="fa-solid fa-triangle-exclamation"></i> Alert'
-          : '<i class="fa-solid fa-shield-heart"></i> Stable';
+  const riskLevel = String(
+    state?.risk_level || structured.risk_level || "not provided"
+  ).toLowerCase();
 
-        if (alertActive) {
-          playAlertTone();
-        } else {
-          alertTonePlayed = false;
-        }
+  const fullText = [
+    state?.intent,
+    state?.summary,
+    state?.reason,
+    state?.patient_status,
+    state?.staff_presence,
+    state?.safety_label,
+    state?.alert_type,
+    state?.risk_level,
+    structured.summary,
+    structured.reason,
+    structured.patient_status,
+    structured.staff_presence,
+    structured.safety_label,
+    structured.alert_type,
+    structured.risk_level,
+    JSON.stringify(llm),
+    JSON.stringify(sections),
+    JSON.stringify(state?.confidence_scores || {}),
+    document.body.innerText
+  ].join(" ").toLowerCase();
+
+  const forcedPatientAlert =
+    fullText.includes("patient not in bed safely") ||
+    fullText.includes("not in bed safely") ||
+    fullText.includes("patient_lying_off_bed") ||
+    fullText.includes("lying_off_bed") ||
+    fullText.includes("away_from_bed") ||
+    fullText.includes("off_bed") ||
+    fullText.includes("off bed") ||
+    fullText.includes("not on bed safely") ||
+    fullText.includes("not safely on bed");
+
+  const alertActive =
+    forcedPatientAlert ||
+    (
+      captureLive &&
+      !overlayStale &&
+      !reasoningStale &&
+      safetyLabel === "ALERT"
+    );
+
+  const alertWarning =
+    captureLive &&
+    !overlayStale &&
+    !reasoningStale &&
+    !alertActive &&
+    (
+      safetyLabel === "MONITOR" ||
+      riskLevel === "warning" ||
+      riskLevel === "high" ||
+      riskLevel === "critical"
+    );
+
+  return {
+    stale,
+    structured,
+    alertActive,
+    alertWarning,
+    reasoningStale,
+    forcedPatientAlert
+  };
+}
+      function updateFeedStatusTag(label, iconClass) {
+        if (!feedStatusTag) return;
+        feedStatusTag.innerHTML = `<i class="fa-solid ${iconClass} me-1"></i>${label}`;
       }
 
-      async function fetchLatestAlert() {
-        try {
-          const response = await fetch("{% url 'get_latest_alert' %}", {
-            headers: { Accept: "application/json" },
-            cache: "no-store",
-            credentials: "same-origin",
-          });
+function updateAlertUi(state) {
+  if (!latestIntentText || !latestAlertCard || !latestAlertBadge) return;
 
-          if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
-          }
+  updateCameraStats(state);
+  renderReasoningOutput(state);
+  renderRecentLogs(state);
 
-          const data = await response.json();
-          updateAlertUi(data);
-        } catch (error) {
-          console.warn("Latest alert fetch failed", error);
-          if (latestAlertBadge && latestIntentText) {
-            latestAlertBadge.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Syncing';
-            latestIntentText.textContent = "Waiting for live inference...";
-          }
-        }
-      }
+  if (state?.status === "ok" || Number(state?.connected_cameras) > 0) {
+    showStreamConnected();
+  }
 
-      fetchLatestAlert();
-      setInterval(fetchLatestAlert, 1000);
-    </script>
-  </body>
-</html>
+  const {
+    stale,
+    structured,
+    alertActive,
+    alertWarning,
+    reasoningStale,
+    forcedPatientAlert,
+  } = resolveLiveAlertState(state);
+
+  const captureActive = state?.capture_active === true;
+  const captureReason = state?.capture_exit_reason || "paused";
+
+  const intent = forcedPatientAlert
+    ? "patient not in bed safely"
+    : (structured.summary || structured.reason || state?.intent || "Monitoring in progress");
+
+  const updatedAt = state?.updated_at
+    ? new Date(state.updated_at * 1000).toLocaleTimeString()
+    : "--";
+
+  console.log("Alarm Debug:", {
+    forcedPatientAlert: forcedPatientAlert,
+    alertActive: alertActive,
+    alertWarning: alertWarning,
+    stale: stale,
+    captureActive: captureActive,
+    reasoningStale: reasoningStale,
+    intent: intent,
+    safety_label: state?.safety_label,
+    patient_status: state?.patient_status,
+    alert_type: state?.alert_type
+  });
+
+  if (captureStatusTag) {
+    if ((stale || !captureActive) && !forcedPatientAlert) {
+      captureStatusTag.textContent = "Stream: paused";
+      captureStatusTag.className = "text-warning fw-semibold";
+    } else {
+      captureStatusTag.textContent = "Stream: live";
+      captureStatusTag.className = "";
+    }
+  }
+
+  if (latestAlertUpdated) {
+    latestAlertUpdated.textContent = `Updated: ${updatedAt}`;
+  }
+
+  latestAlertCard.classList.remove("alert-active", "alert-pending");
+  latestAlertBadge.classList.remove("alert-live", "alert-pending");
+
+  if ((stale || !captureActive) && !forcedPatientAlert) {
+    latestIntentText.textContent = `Monitoring paused (${captureReason})`;
+    latestAlertBadge.innerHTML = '<i class="fa-solid fa-pause"></i> Paused';
+    updateFeedStatusTag("Paused", "fa-pause");
+    stopAlertTone();
+    return;
+  }
+
+  if (reasoningStale && !forcedPatientAlert) {
+    latestIntentText.textContent = "Reasoning updating — waiting for current LLM decision";
+    latestAlertBadge.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Updating';
+    updateFeedStatusTag("Updating", "fa-circle-notch fa-spin");
+    stopAlertTone();
+    return;
+  }
+
+  if (alertActive || forcedPatientAlert) {
+    latestIntentText.textContent = intent;
+    latestAlertCard.classList.add("alert-active");
+    latestAlertBadge.classList.add("alert-live");
+    latestAlertBadge.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> Alert';
+    updateFeedStatusTag("Alert", "fa-triangle-exclamation");
+    playAlertTone();
+    return;
+  }
+
+  if (alertWarning) {
+    latestIntentText.textContent = intent;
+    latestAlertCard.classList.add("alert-pending");
+    latestAlertBadge.classList.add("alert-pending");
+    latestAlertBadge.innerHTML = '<i class="fa-solid fa-clock"></i> Monitor';
+    updateFeedStatusTag("Monitor", "fa-clock");
+    playAlertTone();
+    return;
+  }
+
+  latestIntentText.textContent = intent;
+  latestAlertBadge.innerHTML = '<i class="fa-solid fa-shield-heart"></i> Stable';
+  updateFeedStatusTag("Stable", "fa-shield-heart");
+  stopAlertTone();
+}

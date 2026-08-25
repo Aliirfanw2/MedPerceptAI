@@ -5,9 +5,15 @@ __pycache__/
 
 # Virtual environments
 env/
+env311/
 .venv/
 venv/
 ENV/
+
+# Accidental pip / shell artifacts (do not commit)
+llama-cpp-python
+Untitled
+python
 
 # Django
 *.log

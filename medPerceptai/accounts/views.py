@@ -195,15 +195,20 @@ def home(request):
 
 def dashboard(request):
 
-    from monitor.views import build_monitor_camera_context, _snapshot_latest_inference_state
-
-
+    from monitor.event_store import count_active_alerts
+    from monitor.views import (
+        _ai_reasoning_enabled,
+        _apply_capture_freshness,
+        _resolve_dashboard_latency,
+        _snapshot_latest_inference_state,
+        build_monitor_camera_context,
+    )
 
     monitoring = _monitoring_preferences(request.session)
 
     selected_camera = request.GET.get("camera") or request.session.get("selected_camera") or monitoring["monitor_camera_id"]
 
-    stream_state = _snapshot_latest_inference_state()
+    stream_state = _apply_capture_freshness(_snapshot_latest_inference_state())
 
     camera_feeds, connected_cameras, registered_cameras = build_monitor_camera_context(request.session)
 
@@ -221,6 +226,30 @@ def dashboard(request):
 
         "stream_cache_key": request.session.get("stream_cache_key", int(time.time())),
 
+        "live_intent": stream_state.get("intent") or "Waiting for live stream…",
+
+        "live_alert": bool(stream_state.get("alert")),
+
+        "confidence_scores": stream_state.get("confidence_scores") or {},
+
+        "monitor_status": stream_state.get("monitor_status") or "idle",
+
+        "live_updated_at": stream_state.get("updated_at"),
+
+        "model_status": stream_state.get("model_status") or {},
+
+        "enable_ai_reasoning": _ai_reasoning_enabled(request.session),
+
+        "active_alerts_count": count_active_alerts(request.user),
+
+        "stream_fps": stream_state.get("stream_fps") or 0,
+
+        "latency_ms": _resolve_dashboard_latency(stream_state),
+
+        "frame_width": stream_state.get("frame_width"),
+
+        "frame_height": stream_state.get("frame_height"),
+
         **monitoring,
 
         **_staff_settings_context(request.user),
@@ -237,9 +266,12 @@ def dashboard(request):
 
 def live_monitor(request):
 
-    from monitor.views import build_monitor_camera_context, _snapshot_latest_inference_state
-
-
+    from monitor.event_store import count_active_alerts
+    from monitor.views import (
+        _ai_reasoning_enabled,
+        _snapshot_latest_inference_state,
+        build_monitor_camera_context,
+    )
 
     monitoring = _monitoring_preferences(request.session)
 
@@ -258,6 +290,18 @@ def live_monitor(request):
         "registered_cameras": registered_cameras,
 
         "stream_status": stream_state.get("status") or "idle",
+
+        "stream_cache_key": request.session.get("stream_cache_key", int(time.time())),
+
+        "live_intent": stream_state.get("intent") or "Waiting for live stream…",
+
+        "live_alert": bool(stream_state.get("alert")),
+
+        "model_status": stream_state.get("model_status") or {},
+
+        "enable_ai_reasoning": _ai_reasoning_enabled(request.session),
+
+        "active_alerts_count": count_active_alerts(request.user),
 
         **_staff_settings_context(request.user),
 
@@ -329,6 +373,20 @@ def settings_page(request):
             request.session["enable_ai_reasoning"] = request.POST.get("enable_ai_reasoning") == "on"
             request.session["stream_cache_key"] = int(time.time())
             request.session.modified = True
+
+            from monitor.models import Camera
+
+            Camera.objects.update_or_create(
+                camera_identifier=request.session["monitor_camera_id"],
+                defaults={
+                    "building": request.session["monitor_building"],
+                    "floor": request.session["monitor_floor_number"],
+                    "room_number": request.session["monitor_room_number"],
+                    "display_name": request.session["monitor_camera_id"],
+                    "is_active": True,
+                },
+            )
+
             _stop_capture_worker()
             messages.success(request, "Monitoring settings saved. Open Dashboard to see the live stream.")
             return redirect("settings")
@@ -361,11 +419,27 @@ def settings_page(request):
     return render(request, "settings.html", context)
 
 
-
+@login_required
+def profile_page(request):
+    monitoring = _monitoring_preferences(request.session)
+    is_admin = user_can_manage_system_settings(request.user)
+    return render(
+        request,
+        "profile.html",
+        {
+            **_staff_settings_context(request.user),
+            **monitoring,
+            "can_edit_system_settings": is_admin,
+            "is_system_admin": user_is_system_admin(request.user),
+            "user_email": request.user.email or "",
+            "user_full_name": request.user.get_full_name() or "",
+            "date_joined": request.user.date_joined,
+            "last_login": request.user.last_login,
+        },
+    )
 
 
 @login_required
-
 def alerts_page(request):
 
     from monitor.views import get_recent_alerts
