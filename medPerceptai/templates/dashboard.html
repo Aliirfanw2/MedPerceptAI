@@ -758,7 +758,7 @@ function updateAlertUi(state) {
     latestAlertBadge.classList.add("alert-pending");
     latestAlertBadge.innerHTML = '<i class="fa-solid fa-clock"></i> Monitor';
     updateFeedStatusTag("Monitor", "fa-clock");
-    playAlertTone();
+    stopAlertTone();
     return;
   }
 

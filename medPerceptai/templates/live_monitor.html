@@ -338,7 +338,6 @@
           riskLevel === "high" ||
           riskLevel === "critical";
         const alertActive = Boolean(state?.alert) || forcedPatientAlert;
-        const alarmRequired = alertActive || monitorRequired;
 
         latestIntentText.textContent = forcedPatientAlert
           ? "patient not in bed safely"
@@ -361,7 +360,7 @@
             ? '<i class="fa-solid fa-clock"></i> Monitor'
             : '<i class="fa-solid fa-shield-heart"></i> Stable';
 
-        if (alarmRequired) {
+        if (alertActive) {
           playAlertTone();
         } else {
           stopAlertTone();
