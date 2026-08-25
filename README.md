@@ -1,6 +1,6 @@
 # MedPerceptAI
 
-MedPerceptAI is a real-time patient monitoring system built with Django, YOLO perception models, and optional Llama-based reasoning.
+MedPerceptAI is a real-time patient monitoring system built with Django, YOLO perception models, and a Llama-based final reasoning model.
 
 ## What This Project Does
 
@@ -15,13 +15,14 @@ MedPerceptAI is a real-time patient monitoring system built with Django, YOLO pe
 - Backend runtime pipeline, event store, and dashboard APIs are integrated.
 - Alarm logic is finalized to trigger only on alert.
 
-## Important Reasoning Model Note
+## Main Reasoning Model Note
 
-- The Llama reasoning model file is not included in this repository.
-- Reasoning-based final decisions require adding the external GGUF model at runtime.
+- The Llama reasoning model is the main final decision model in this project.
+- It generates NLP-style final output such as patient posture/status, risk level, alert type, and summary.
+- This GGUF model file is not included in the repository because of large model size.
 - Team reference source is Hugging Face user/account: waqas69.
 
-If the reasoning model is not added, the system can still run in fallback mode, but full reasoning behavior will be limited.
+If the reasoning model is not added, the system runs in fallback mode only and full reasoning behavior is not available.
 
 ## Model Inventory and Integration Flow
 
@@ -39,10 +40,10 @@ This project uses 4 model components in total.
 - Purpose: Extracts pose landmarks and posture cues.
 - Runtime role: Contributes posture safety signals used in decisions.
 
-4. Reasoning model (optional but important): llama-3-8b-instruct.Q4_K_M.gguf
+4. Reasoning model (main final decision model): llama-3-8b-instruct.Q4_K_M.gguf
 - Purpose: Converts structured scene context into final reasoning output.
 - Runtime role: Produces final reasoning fields such as safety_label, alert_type, risk_level, reason, and summary.
-- Source: External model reference from Hugging Face account waqas69.
+- Source: Hugging Face account waqas69 (kept outside repo due to model size).
 
 How integration works in runtime:
 
