@@ -23,6 +23,43 @@ MedPerceptAI is a real-time patient monitoring system built with Django, YOLO pe
 
 If the reasoning model is not added, the system can still run in fallback mode, but full reasoning behavior will be limited.
 
+## Model Inventory and Integration Flow
+
+This project uses 4 model components in total.
+
+1. Object detection model: obj.pt
+- Purpose: Detects scene objects and person bounding boxes.
+- Runtime role: Provides primary detections for downstream context.
+
+2. Role classification model: roles.pt
+- Purpose: Classifies detected person role, such as patient, nurse, or doctor.
+- Runtime role: Adds identity/role context to each person track.
+
+3. Pose estimation model: yolov8n-pose.pt
+- Purpose: Extracts pose landmarks and posture cues.
+- Runtime role: Contributes posture safety signals used in decisions.
+
+4. Reasoning model (optional but important): llama-3-8b-instruct.Q4_K_M.gguf
+- Purpose: Converts structured scene context into final reasoning output.
+- Runtime role: Produces final reasoning fields such as safety_label, alert_type, risk_level, reason, and summary.
+- Source: External model reference from Hugging Face account waqas69.
+
+How integration works in runtime:
+
+1. Input source starts from camera or prerecorded video.
+2. Per-frame inference runs on object, role, and pose models.
+3. Outputs are fused into a single structured scene context.
+4. If ENABLE_REASONING=1 and reasoning model is available, Llama generates final decision fields.
+5. If reasoning model is unavailable, system runs fallback reasoning logic.
+6. Dashboard API publishes final state and UI renders alert/monitor cards.
+7. Alarm audio is triggered only when final alert state is true.
+
+Minimum requirement for full reasoning mode:
+
+- Keep all 3 YOLO models available in model_weights.
+- Add the GGUF reasoning model and set REASONING_MODEL_PATH if custom path is used.
+- Enable ENABLE_REASONING=1.
+
 ## Default Model Paths
 
 Expected model files in medPerceptai/model_weights:
